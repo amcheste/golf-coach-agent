@@ -14,21 +14,22 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from crewai import Agent, Task, Crew, Process
+from crewai import Agent, Crew, Process, Task
 from dotenv import load_dotenv
 
 load_dotenv()
 
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
 
 from rapsodo_tool import download_rapsodo_session
 
-
 # ---------------------------------------------------------------------------
 # Vision Analysis Helper
 # ---------------------------------------------------------------------------
+
 
 def _encode_image_b64(path: str) -> Optional[str]:
     """Read an image file and return base64 encoded string."""
@@ -61,18 +62,17 @@ def analyze_swing_frames_with_vision(video_metadata: list[dict], session_analysi
     # Pick up to 3 shots: worst, median, best smash factor
     scored = sorted(
         [s for s in shots_with_frames if s.get("metrics", {}).get("smash_factor")],
-        key=lambda s: s["metrics"]["smash_factor"]
+        key=lambda s: s["metrics"]["smash_factor"],
     )
     candidates = []
     if scored:
-        candidates.append(scored[0])   # worst
+        candidates.append(scored[0])  # worst
         if len(scored) > 1:
             candidates.append(scored[-1])  # best
         if len(scored) > 2:
             candidates.append(scored[len(scored) // 2])  # median
 
     # Build prompt context
-    clubs_in_session = list(session_analysis.get("per_club_stats", {}).keys())
     per_club_summary = {}
     for club, stats in session_analysis.get("per_club_stats", {}).items():
         avgs = stats.get("averages", {})
@@ -105,15 +105,23 @@ Please provide:
 3. The single most impactful mechanical flaw to fix
 
 Shots being analyzed:
-{json.dumps([{
-    "shot": s["shot_number"],
-    "club": s["club"],
-    "carry_yds": s.get("carry_distance_yds"),
-    "smash_factor": s.get("metrics", {}).get("smash_factor"),
-    "club_path": s.get("metrics", {}).get("club_path_deg"),
-    "face_angle": s.get("metrics", {}).get("face_angle_deg"),
-    "backspin": s.get("metrics", {}).get("backspin_rpm"),
-} for s in candidates], indent=2)}"""
+{
+        json.dumps(
+            [
+                {
+                    "shot": s["shot_number"],
+                    "club": s["club"],
+                    "carry_yds": s.get("carry_distance_yds"),
+                    "smash_factor": s.get("metrics", {}).get("smash_factor"),
+                    "club_path": s.get("metrics", {}).get("club_path_deg"),
+                    "face_angle": s.get("metrics", {}).get("face_angle_deg"),
+                    "backspin": s.get("metrics", {}).get("backspin_rpm"),
+                }
+                for s in candidates
+            ],
+            indent=2,
+        )
+    }"""
 
     if anthropic_key:
         return _vision_with_anthropic(system_prompt, user_prompt, candidates, anthropic_key)
@@ -136,26 +144,31 @@ def _vision_with_anthropic(system_prompt: str, user_prompt: str, shots: list, ap
                 continue
             b64 = _encode_image_b64(frame_path)
             if b64:
-                content.append({
-                    "type": "text",
-                    "text": f"Shot {shot['shot_number']} — {position.replace('_', ' ').title()}:"
-                })
-                content.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": "image/jpeg",
-                        "data": b64,
+                content.append(
+                    {
+                        "type": "text",
+                        "text": f"Shot {shot['shot_number']} — {position.replace('_', ' ').title()}:",
                     }
-                })
+                )
+                content.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/jpeg",
+                            "data": b64,
+                        },
+                    }
+                )
 
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=1500,
         system=system_prompt,
-        messages=[{"role": "user", "content": content}],
+        messages=[{"role": "user", "content": content}],  # type: ignore[list-item]
     )
-    return response.content[0].text
+    first_block = response.content[0]
+    return first_block.text if hasattr(first_block, "text") else ""
 
 
 def _vision_with_openai(system_prompt: str, user_prompt: str, shots: list, api_key: str) -> str:
@@ -176,24 +189,32 @@ def _vision_with_openai(system_prompt: str, user_prompt: str, shots: list, api_k
                 continue
             b64 = _encode_image_b64(frame_path)
             if b64:
-                content.append({"type": "text", "text": f"Shot {shot['shot_number']} — {position.replace('_', ' ').title()}:"})
-                content.append({
-                    "type": "image_url",
-                    "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "high"},
-                })
+                content.append(
+                    {
+                        "type": "text",
+                        "text": f"Shot {shot['shot_number']} — {position.replace('_', ' ').title()}:",
+                    }
+                )
+                content.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{b64}", "detail": "high"},
+                    }
+                )
 
-    messages.append({"role": "user", "content": content})
+    messages.append({"role": "user", "content": content})  # type: ignore[arg-type]
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=messages,
+        messages=messages,  # type: ignore[arg-type]
         max_tokens=1500,
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""
 
 
 # ---------------------------------------------------------------------------
 # CrewAI Agent + Task Definitions
 # ---------------------------------------------------------------------------
+
 
 def build_scout_agent() -> Agent:
     """The Scout: responsible for downloading and packaging session data."""

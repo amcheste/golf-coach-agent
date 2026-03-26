@@ -4,15 +4,14 @@ No network calls, no credentials needed.
 """
 
 import sys
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from utils import resolve_date as _resolve_date
-
 
 TODAY = datetime.today()
 TODAY_STR = TODAY.strftime("%Y-%m-%d")

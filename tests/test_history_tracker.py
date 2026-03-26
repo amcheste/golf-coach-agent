@@ -16,23 +16,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 @pytest.fixture(autouse=True)
 def isolated_db(tmp_path, monkeypatch):
     import history_tracker
+
     monkeypatch.setattr(history_tracker, "DB_PATH", tmp_path / "test_history.db")
     monkeypatch.setattr(history_tracker, "VAULT_DIR", tmp_path)
     yield
 
 
 from history_tracker import (
-    upsert_session,
+    TRACKED_METRICS,
     get_trend,
     get_trend_summary,
     list_sessions,
-    TRACKED_METRICS,
+    upsert_session,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def make_analysis(club: str, carry: float, smash: float, path: float) -> dict:
     return {
@@ -85,6 +86,7 @@ def make_shots(club: str, n: int = 3) -> list:
 # upsert_session
 # ---------------------------------------------------------------------------
 
+
 class TestUpsertSession:
     def test_basic_insert(self):
         upsert_session("2026-03-01", make_analysis("7Iron", 150.0, 1.42, -2.0), make_shots("7Iron"))
@@ -116,6 +118,7 @@ class TestUpsertSession:
 # ---------------------------------------------------------------------------
 # get_trend
 # ---------------------------------------------------------------------------
+
 
 class TestGetTrend:
     def _insert_sessions(self):
@@ -150,23 +153,30 @@ class TestGetTrend:
 # get_trend_summary
 # ---------------------------------------------------------------------------
 
+
 class TestGetTrendSummary:
     def test_improving_carry(self):
         for i, carry in enumerate([145.0, 150.0, 155.0], start=1):
-            upsert_session(f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron"))
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron")
+            )
         summary = get_trend_summary("7Iron", "carry_distance_yds", 3)
         assert summary["direction"] == "improving"
         assert summary["delta"] == pytest.approx(10.0)
 
     def test_worsening_carry(self):
         for i, carry in enumerate([160.0, 155.0, 148.0], start=1):
-            upsert_session(f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron"))
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron")
+            )
         summary = get_trend_summary("7Iron", "carry_distance_yds", 3)
         assert summary["direction"] == "worsening"
 
     def test_stable_when_small_change(self):
         for i, carry in enumerate([150.0, 151.0, 150.5], start=1):
-            upsert_session(f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron"))
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron")
+            )
         summary = get_trend_summary("7Iron", "carry_distance_yds", 3)
         assert summary["direction"] == "stable"
 
@@ -178,14 +188,21 @@ class TestGetTrendSummary:
     def test_worsening_path_means_path_increasing(self):
         # Club path going from -2 to -5 = worsening (bigger deviation)
         for i, path in enumerate([-2.0, -3.5, -5.0], start=1):
-            upsert_session(f"2026-03-0{i}", make_analysis("7Iron", 150.0, 1.42, path), make_shots("7Iron"))
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", 150.0, 1.42, path), make_shots("7Iron")
+            )
         summary = get_trend_summary("7Iron", "club_path_deg", 3)
         # path is not in the "higher = improving" list, so going down = improving
-        assert summary["direction"] in ("improving", "worsening")  # direction depends on sign convention
+        assert summary["direction"] in (
+            "improving",
+            "worsening",
+        )  # direction depends on sign convention
 
     def test_summary_string_present(self):
         for i, carry in enumerate([145.0, 155.0], start=1):
-            upsert_session(f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron"))
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", carry, 1.42, -2.0), make_shots("7Iron")
+            )
         summary = get_trend_summary("7Iron", "carry_distance_yds")
         assert isinstance(summary["summary"], str)
         assert "7Iron" in summary["summary"]
@@ -194,6 +211,7 @@ class TestGetTrendSummary:
 # ---------------------------------------------------------------------------
 # list_sessions
 # ---------------------------------------------------------------------------
+
 
 class TestListSessions:
     def test_empty_db(self):

@@ -1,0 +1,18 @@
+[run]
+omit =
+    # Requires live R-Cloud session — not testable in CI
+    src/rapsodo_scraper.py
+    # Requires crewai + playwright at runtime
+    tools/rapsodo_tool.py
+    # Requires live LLM API keys
+    agents/*
+    # Scripts are one-off utilities, not library code
+    scripts/*
+    # Test files themselves
+    tests/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
+    raise NotImplementedError

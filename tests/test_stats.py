@@ -11,17 +11,17 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from preprocessor import (
-    _safe_mean,
-    _safe_std,
-    _per_club_stats,
     _detect_outliers,
     _overall_summary,
+    _per_club_stats,
+    _safe_mean,
+    _safe_std,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def make_shot(num, club, carry, smash=None, ball_speed=None, path=None, face=None):
     return {
@@ -64,6 +64,7 @@ ALL_SHOTS = SEVEN_IRON_SHOTS + DRIVER_SHOTS
 # _safe_mean
 # ---------------------------------------------------------------------------
 
+
 class TestSafeMean:
     def test_normal_values(self):
         assert _safe_mean([1.0, 2.0, 3.0]) == 2.0
@@ -89,6 +90,7 @@ class TestSafeMean:
 # _safe_std
 # ---------------------------------------------------------------------------
 
+
 class TestSafeStd:
     def test_known_std(self):
         # sample std (ddof=1) of [2, 4, 4, 4, 5, 5, 7, 9] ≈ 2.14
@@ -113,6 +115,7 @@ class TestSafeStd:
 # ---------------------------------------------------------------------------
 # _per_club_stats
 # ---------------------------------------------------------------------------
+
 
 class TestPerClubStats:
     def test_clubs_identified(self):
@@ -160,6 +163,7 @@ class TestPerClubStats:
 # _detect_outliers
 # ---------------------------------------------------------------------------
 
+
 class TestDetectOutliers:
     def test_best_worst_identified(self):
         outliers = _detect_outliers(ALL_SHOTS)
@@ -184,6 +188,7 @@ class TestDetectOutliers:
 # ---------------------------------------------------------------------------
 # _overall_summary
 # ---------------------------------------------------------------------------
+
 
 class TestOverallSummary:
     def test_total_shots(self):

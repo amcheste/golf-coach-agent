@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 
 import aiofiles
 from dotenv import load_dotenv
-from playwright.async_api import async_playwright, Page, BrowserContext, Response
+from playwright.async_api import BrowserContext, Page, Response, async_playwright
 
 load_dotenv()
 
@@ -29,6 +29,7 @@ VAULT_DIR = Path(__file__).parent.parent / "rapsodo_vault"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 async def _jitter(min_s: float = 1.5, max_s: float = 3.0):
     """Random human-like delay between actions."""
@@ -62,15 +63,14 @@ async def _download_file(url: str, dest: Path, context: BrowserContext):
 # Auth
 # ---------------------------------------------------------------------------
 
+
 async def _perform_login(page: Page, context: BrowserContext, headed: bool):
     """Navigate to login page and authenticate. Saves session state afterwards."""
     email = os.getenv("RAPSODO_EMAIL", "")
     password = os.getenv("RAPSODO_PASSWORD", "")
 
     if not email or not password:
-        raise ValueError(
-            "RAPSODO_EMAIL and RAPSODO_PASSWORD must be set in your .env file."
-        )
+        raise ValueError("RAPSODO_EMAIL and RAPSODO_PASSWORD must be set in your .env file.")
 
     print("[Auth] Navigating to login page...")
     await page.goto(f"{BASE_URL}/login", wait_until="networkidle")
@@ -122,6 +122,7 @@ async def _get_authenticated_context(playwright, debug: bool = False):
 # Session Discovery
 # ---------------------------------------------------------------------------
 
+
 async def _find_session_for_date(page: Page, target_date: str) -> bool:
     """
     Navigate the Sessions list and click into the session matching target_date.
@@ -142,27 +143,28 @@ async def _find_session_for_date(page: Page, target_date: str) -> bool:
     # Search for the target date in any visible text (handles MM/DD/YYYY and YYYY-MM-DD formats)
     # Convert YYYY-MM-DD to multiple display formats for matching
     from datetime import datetime
+
     dt = datetime.strptime(target_date, "%Y-%m-%d")
     date_variants = [
-        target_date,                          # 2026-03-25
-        dt.strftime("%-m/%-d/%Y"),            # 3/25/2026
-        dt.strftime("%m/%d/%Y"),              # 03/25/2026
-        dt.strftime("%B %-d, %Y"),            # March 25, 2026
-        dt.strftime("%b %-d, %Y"),            # Mar 25, 2026
+        target_date,  # 2026-03-25
+        dt.strftime("%-m/%-d/%Y"),  # 3/25/2026
+        dt.strftime("%m/%d/%Y"),  # 03/25/2026
+        dt.strftime("%B %-d, %Y"),  # March 25, 2026
+        dt.strftime("%b %-d, %Y"),  # Mar 25, 2026
     ]
 
     for i in range(count):
         card = session_cards.nth(i)
         card_text = await card.inner_text()
         if any(variant in card_text for variant in date_variants):
-            print(f"[Scout] Found matching session. Clicking in...")
+            print("[Scout] Found matching session. Clicking in...")
             await card.click()
             await page.wait_for_load_state("networkidle")
             await _jitter(2, 3)
             return True
 
     # If not found on first page, try scrolling or pagination
-    print(f"[Scout] Session not visible — attempting scroll/pagination search...")
+    print("[Scout] Session not visible — attempting scroll/pagination search...")
     for _ in range(5):
         await page.keyboard.press("End")
         await _jitter(1, 2)
@@ -174,7 +176,7 @@ async def _find_session_for_date(page: Page, target_date: str) -> bool:
             card = session_cards.nth(i)
             card_text = await card.inner_text()
             if any(variant in card_text for variant in date_variants):
-                print(f"[Scout] Found matching session after scroll. Clicking in...")
+                print("[Scout] Found matching session after scroll. Clicking in...")
                 await card.click()
                 await page.wait_for_load_state("networkidle")
                 await _jitter(2, 3)
@@ -188,21 +190,23 @@ async def _find_session_for_date(page: Page, target_date: str) -> bool:
 # Network Interception — the key to getting clean JSON data
 # ---------------------------------------------------------------------------
 
+
 def _build_intercept_handler(captured: list):
     """
     Returns an async handler that captures JSON responses from Rapsodo's
     internal API calls as the session page loads.
     """
+
     async def handler(response: Response):
         url = response.url
         # Target JSON API responses (avoid images, CSS, JS bundles)
         if (
             response.status == 200
             and "json" in response.headers.get("content-type", "")
-            and any(kw in url for kw in [
-                "/api/", "/sessions/", "/shots/", "/telemetry/",
-                "rapsodo", "golf-cloud"
-            ])
+            and any(
+                kw in url
+                for kw in ["/api/", "/sessions/", "/shots/", "/telemetry/", "rapsodo", "golf-cloud"]
+            )
         ):
             try:
                 body = await response.json()
@@ -210,6 +214,7 @@ def _build_intercept_handler(captured: list):
                 print(f"[Intercept] Captured JSON from: {url}")
             except Exception:
                 pass  # Binary or malformed — skip
+
     return handler
 
 
@@ -240,10 +245,19 @@ def _extract_shots_from_captured(captured: list) -> list[dict]:
             if not isinstance(item, dict):
                 continue
             # Heuristic: a shot dict should have at least ball speed or launch angle
-            has_metrics = any(k in item for k in [
-                "ballSpeed", "ball_speed", "launchAngle", "launch_angle",
-                "totalSpin", "total_spin", "carryDistance", "carry_distance"
-            ])
+            has_metrics = any(
+                k in item
+                for k in [
+                    "ballSpeed",
+                    "ball_speed",
+                    "launchAngle",
+                    "launch_angle",
+                    "totalSpin",
+                    "total_spin",
+                    "carryDistance",
+                    "carry_distance",
+                ]
+            )
             if has_metrics:
                 shots.append(item)
 
@@ -252,6 +266,7 @@ def _extract_shots_from_captured(captured: list) -> list[dict]:
 
 def _normalize_shot(raw: dict, index: int) -> dict:
     """Normalize varied field names into a consistent schema."""
+
     def get(*keys):
         for k in keys:
             if k in raw:
@@ -284,6 +299,7 @@ def _normalize_shot(raw: dict, index: int) -> dict:
 # Main fetch function
 # ---------------------------------------------------------------------------
 
+
 async def fetch_session(target_date: str, debug: bool = False) -> dict:
     """
     Full pipeline for one session date:
@@ -299,7 +315,7 @@ async def fetch_session(target_date: str, debug: bool = False) -> dict:
     video_dir = session_dir / "videos"
     video_dir.mkdir(exist_ok=True)
 
-    captured_responses = []
+    captured_responses: list[dict] = []
 
     async with async_playwright() as p:
         browser, context = await _get_authenticated_context(p, debug=debug)
@@ -325,7 +341,9 @@ async def fetch_session(target_date: str, debug: bool = False) -> dict:
 
         # Try to trigger a CSV export if the button exists
         try:
-            export_btn = page.locator('button:has-text("Export"), a:has-text("CSV"), [aria-label*="export" i]')
+            export_btn = page.locator(
+                'button:has-text("Export"), a:has-text("CSV"), [aria-label*="export" i]'
+            )
             if await export_btn.count() > 0:
                 print("[Scout] Attempting CSV export...")
                 async with page.expect_download(timeout=10_000) as dl_info:

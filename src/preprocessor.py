@@ -33,6 +33,7 @@ FRAME_POSITIONS = {
 # Statistical helpers
 # ---------------------------------------------------------------------------
 
+
 def _safe_mean(values: list) -> Optional[float]:
     vals = [v for v in values if v is not None]
     return round(sum(vals) / len(vals), 2) if vals else None
@@ -56,9 +57,15 @@ def _per_club_stats(shots: list[dict]) -> dict:
 
     result = {}
     metrics = [
-        "ball_speed_mph", "club_speed_mph", "launch_angle_deg",
-        "backspin_rpm", "smash_factor", "carry_distance_yds",
-        "total_distance_yds", "club_path_deg", "face_angle_deg",
+        "ball_speed_mph",
+        "club_speed_mph",
+        "launch_angle_deg",
+        "backspin_rpm",
+        "smash_factor",
+        "carry_distance_yds",
+        "total_distance_yds",
+        "club_path_deg",
+        "face_angle_deg",
     ]
     for club, club_shots in clubs.items():
         result[club] = {
@@ -118,7 +125,9 @@ def _overall_summary(shots: list[dict], per_club: dict) -> dict:
         "total_shots": len(shots),
         "clubs_used": clubs_used,
         "most_consistent_club": most_consistent,
-        "most_consistent_carry_std_yds": round(lowest_std, 2) if lowest_std != float("inf") else None,
+        "most_consistent_carry_std_yds": round(lowest_std, 2)
+        if lowest_std != float("inf")
+        else None,
         "best_smash_factor_club": best_smash_club,
         "best_smash_factor_avg": round(best_smash, 3) if best_smash else None,
     }
@@ -127,6 +136,7 @@ def _overall_summary(shots: list[dict], per_club: dict) -> dict:
 # ---------------------------------------------------------------------------
 # Key frame extraction
 # ---------------------------------------------------------------------------
+
 
 def _enhance_frame(frame: np.ndarray) -> np.ndarray:
     """
@@ -160,8 +170,6 @@ def extract_key_frames(video_path: Path, output_dir: Path, shot_prefix: str) -> 
         return {}
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = cap.get(cv2.CAP_PROP_FPS) or 30
-    duration_s = total_frames / fps
 
     extracted = {}
 
@@ -199,8 +207,8 @@ def _detect_impact_frame(cap: cv2.VideoCapture, total_frames: int) -> Optional[i
     search_start = int(total_frames * 0.50)
     search_end = int(total_frames * 0.75)
 
-    max_diff = 0
-    best_frame = None
+    max_diff = 0.0
+    best_frame: Optional[int] = None
     prev_gray = None
 
     cap.set(cv2.CAP_PROP_POS_FRAMES, search_start)
@@ -223,6 +231,7 @@ def _detect_impact_frame(cap: cv2.VideoCapture, total_frames: int) -> Optional[i
 # ---------------------------------------------------------------------------
 # Main preprocessing function
 # ---------------------------------------------------------------------------
+
 
 def preprocess_session(session_path: str, shots: list[dict]) -> dict:
     """
@@ -255,7 +264,7 @@ def preprocess_session(session_path: str, shots: list[dict]) -> dict:
     analysis_path = session_dir / "session_analysis.json"
     with open(analysis_path, "w") as f:
         json.dump(analysis, f, indent=2, default=str)
-    print(f"[Preprocessor] Saved session_analysis.json")
+    print("[Preprocessor] Saved session_analysis.json")
 
     # --- Key frame extraction ---
     video_dir = session_dir / "videos"
@@ -272,10 +281,19 @@ def preprocess_session(session_path: str, shots: list[dict]) -> dict:
             "club": club,
             "carry_distance_yds": carry,
             "metrics": {
-                k: shot.get(k) for k in [
-                    "ball_speed_mph", "club_speed_mph", "launch_angle_deg",
-                    "backspin_rpm", "sidespin_rpm", "spin_axis_deg", "smash_factor",
-                    "club_path_deg", "face_angle_deg", "angle_of_attack_deg", "lateral_yds",
+                k: shot.get(k)
+                for k in [
+                    "ball_speed_mph",
+                    "club_speed_mph",
+                    "launch_angle_deg",
+                    "backspin_rpm",
+                    "sidespin_rpm",
+                    "spin_axis_deg",
+                    "smash_factor",
+                    "club_path_deg",
+                    "face_angle_deg",
+                    "angle_of_attack_deg",
+                    "lateral_yds",
                 ]
             },
             "videos": {},
@@ -291,11 +309,7 @@ def preprocess_session(session_path: str, shots: list[dict]) -> dict:
 
                 # Extract key frames from impact video (primary coaching video)
                 if video_type == "impact":
-                    frames = extract_key_frames(
-                        video_path,
-                        frames_dir,
-                        f"{prefix}_{video_type}"
-                    )
+                    frames = extract_key_frames(video_path, frames_dir, f"{prefix}_{video_type}")
                     shot_meta["frames"] = frames
                     print(f"[Preprocessor] Extracted {len(frames)} frames for shot {shot_num}")
             else:
@@ -305,7 +319,9 @@ def preprocess_session(session_path: str, shots: list[dict]) -> dict:
                     video_path = candidates[0]
                     shot_meta["videos"][video_type] = str(video_path)
                     if video_type == "impact":
-                        frames = extract_key_frames(video_path, frames_dir, f"{prefix}_{video_type}")
+                        frames = extract_key_frames(
+                            video_path, frames_dir, f"{prefix}_{video_type}"
+                        )
                         shot_meta["frames"] = frames
 
         video_metadata.append(shot_meta)
@@ -313,7 +329,7 @@ def preprocess_session(session_path: str, shots: list[dict]) -> dict:
     metadata_path = session_dir / "video_metadata.json"
     with open(metadata_path, "w") as f:
         json.dump(video_metadata, f, indent=2, default=str)
-    print(f"[Preprocessor] Saved video_metadata.json")
+    print("[Preprocessor] Saved video_metadata.json")
 
     total_frames = sum(len(s["frames"]) for s in video_metadata)
     print(f"[Preprocessor] Done. {total_frames} key frames extracted across {len(shots)} shots.")

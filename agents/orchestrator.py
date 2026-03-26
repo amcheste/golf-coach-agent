@@ -30,18 +30,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
 
 from coach_agent import (
-    build_scout_agent,
-    build_coach_agent,
-    build_scout_task,
-    build_coach_task,
     analyze_swing_frames_with_vision,
+    build_coach_agent,
+    build_coach_task,
+    build_scout_agent,
+    build_scout_task,
 )
-from rapsodo_tool import _resolve_date, RapsodoCoachTool
-
+from rapsodo_tool import RapsodoCoachTool, _resolve_date
 
 # ---------------------------------------------------------------------------
 # Main pipeline
 # ---------------------------------------------------------------------------
+
 
 def run_coaching_session(session_date: str, debug: bool = False) -> str:
     """
@@ -55,9 +55,9 @@ def run_coaching_session(session_date: str, debug: bool = False) -> str:
         Coaching report as a formatted string.
     """
     resolved_date = _resolve_date(session_date)
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  Golf Coach Agent — Session: {resolved_date}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # --- Phase 1: Download + Preprocess (direct, faster than going through CrewAI for this) ---
     print("[Orchestrator] Phase 1: Downloading session from R-Cloud...")
@@ -71,8 +71,10 @@ def run_coaching_session(session_date: str, debug: bool = False) -> str:
             print(f"[Hint] {session_package['debug_hint']}")
         return f"Error: Could not retrieve session for {resolved_date}. {error}"
 
-    print(f"\n[Orchestrator] Session loaded: {session_package['shot_count']} shots, "
-          f"{session_package['frame_count']} frames extracted.")
+    print(
+        f"\n[Orchestrator] Session loaded: {session_package['shot_count']} shots, "
+        f"{session_package['frame_count']} frames extracted."
+    )
 
     # --- Phase 2: Vision Analysis ---
     print("\n[Orchestrator] Phase 2: Running Vision analysis on swing frames...")
@@ -85,17 +87,20 @@ def run_coaching_session(session_date: str, debug: bool = False) -> str:
     # --- Phase 3: Coach Agent generates report ---
     print("\n[Orchestrator] Phase 3: Coach Agent writing report...\n")
 
-    scout = build_scout_agent()
     coach = build_coach_agent()
 
     # The Scout task is informational here — we already have the data
     # Pass the session package summary directly to the coach task context
-    session_summary_for_coach = json.dumps({
-        "session_date": session_package["session_date"],
-        "shot_count": session_package["shot_count"],
-        "session_analysis": session_package["session_analysis"],
-        "trend_report": session_package.get("trend_report", []),
-    }, indent=2, default=str)
+    session_summary_for_coach = json.dumps(
+        {
+            "session_date": session_package["session_date"],
+            "shot_count": session_package["shot_count"],
+            "session_analysis": session_package["session_analysis"],
+            "trend_report": session_package.get("trend_report", []),
+        },
+        indent=2,
+        default=str,
+    )
 
     coach_task_description = f"""
 The Scout has already downloaded and processed the session. Here is the complete data package:
@@ -130,6 +135,7 @@ Using the data AND the vision analysis, write a complete coaching report in this
 """
 
     from crewai import Task
+
     final_coach_task = Task(
         description=coach_task_description,
         expected_output=(
@@ -157,9 +163,9 @@ Using the data AND the vision analysis, write a complete coaching report in this
         f.write(report)
     print(f"\n[Orchestrator] Report saved to: {report_path}")
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(report)
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     return report
 
@@ -167,6 +173,7 @@ Using the data AND the vision analysis, write a complete coaching report in this
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -181,7 +188,8 @@ Examples:
         """,
     )
     parser.add_argument(
-        "--date", "-d",
+        "--date",
+        "-d",
         required=True,
         help='Session date (e.g. "yesterday", "last Tuesday", "2026-03-25")',
     )

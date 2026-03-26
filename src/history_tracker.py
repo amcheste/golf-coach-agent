@@ -91,6 +91,7 @@ def _get_conn() -> sqlite3.Connection:
 # Write
 # ---------------------------------------------------------------------------
 
+
 def upsert_session(session_date: str, session_analysis: dict, shots: list[dict]):
     """
     Insert or replace per-club averages for a session date.
@@ -126,12 +127,19 @@ def upsert_session(session_date: str, session_analysis: dict, shots: list[dict])
                     angle_of_attack_deg = excluded.angle_of_attack_deg
                 """,
                 (
-                    session_date, club, stats.get("shot_count"),
-                    averages.get("ball_speed_mph"), averages.get("club_speed_mph"),
-                    averages.get("launch_angle_deg"), averages.get("backspin_rpm"),
-                    averages.get("sidespin_rpm"), averages.get("smash_factor"),
-                    averages.get("carry_distance_yds"), averages.get("total_distance_yds"),
-                    averages.get("club_path_deg"), averages.get("face_angle_deg"),
+                    session_date,
+                    club,
+                    stats.get("shot_count"),
+                    averages.get("ball_speed_mph"),
+                    averages.get("club_speed_mph"),
+                    averages.get("launch_angle_deg"),
+                    averages.get("backspin_rpm"),
+                    averages.get("sidespin_rpm"),
+                    averages.get("smash_factor"),
+                    averages.get("carry_distance_yds"),
+                    averages.get("total_distance_yds"),
+                    averages.get("club_path_deg"),
+                    averages.get("face_angle_deg"),
                     averages.get("angle_of_attack_deg"),
                 ),
             )
@@ -149,19 +157,28 @@ def upsert_session(session_date: str, session_analysis: dict, shots: list[dict])
                 """,
                 (
                     session_date,
-                    shot.get("shot_number"), shot.get("club"),
-                    shot.get("ball_speed_mph"), shot.get("club_speed_mph"),
-                    shot.get("launch_angle_deg"), shot.get("backspin_rpm"),
-                    shot.get("sidespin_rpm"), shot.get("spin_axis_deg"),
-                    shot.get("smash_factor"), shot.get("carry_distance_yds"),
-                    shot.get("total_distance_yds"), shot.get("club_path_deg"),
-                    shot.get("face_angle_deg"), shot.get("angle_of_attack_deg"),
+                    shot.get("shot_number"),
+                    shot.get("club"),
+                    shot.get("ball_speed_mph"),
+                    shot.get("club_speed_mph"),
+                    shot.get("launch_angle_deg"),
+                    shot.get("backspin_rpm"),
+                    shot.get("sidespin_rpm"),
+                    shot.get("spin_axis_deg"),
+                    shot.get("smash_factor"),
+                    shot.get("carry_distance_yds"),
+                    shot.get("total_distance_yds"),
+                    shot.get("club_path_deg"),
+                    shot.get("face_angle_deg"),
+                    shot.get("angle_of_attack_deg"),
                     shot.get("lateral_yds"),
                 ),
             )
 
         conn.commit()
-        print(f"[History] Saved {len(per_club)} club summaries + {len(shots)} shots for {session_date}")
+        print(
+            f"[History] Saved {len(per_club)} club summaries + {len(shots)} shots for {session_date}"
+        )
     finally:
         conn.close()
 
@@ -169,6 +186,7 @@ def upsert_session(session_date: str, session_analysis: dict, shots: list[dict])
 # ---------------------------------------------------------------------------
 # Read / Trend queries
 # ---------------------------------------------------------------------------
+
 
 def get_trend(club: str, metric: str, last_n_sessions: int = 5) -> list[dict]:
     """
@@ -227,15 +245,31 @@ def get_trend_summary(club: str, metric: str, last_n_sessions: int = 5) -> dict:
     if abs(pct_change) < 3:
         direction = "stable"
     elif delta > 0:
-        direction = "improving" if metric in [
-            "carry_distance_yds", "total_distance_yds", "ball_speed_mph",
-            "club_speed_mph", "smash_factor"
-        ] else "worsening"
+        direction = (
+            "improving"
+            if metric
+            in [
+                "carry_distance_yds",
+                "total_distance_yds",
+                "ball_speed_mph",
+                "club_speed_mph",
+                "smash_factor",
+            ]
+            else "worsening"
+        )
     else:
-        direction = "worsening" if metric in [
-            "carry_distance_yds", "total_distance_yds", "ball_speed_mph",
-            "club_speed_mph", "smash_factor"
-        ] else "improving"
+        direction = (
+            "worsening"
+            if metric
+            in [
+                "carry_distance_yds",
+                "total_distance_yds",
+                "ball_speed_mph",
+                "club_speed_mph",
+                "smash_factor",
+            ]
+            else "improving"
+        )
 
     summary = (
         f"{club} {metric}: {direction} over {len(trend)} sessions "
@@ -262,8 +296,11 @@ def get_all_trends_for_session(session_analysis: dict, last_n_sessions: int = 5)
     so the Coach Agent gets a complete picture before writing its report.
     """
     priority_metrics = [
-        "carry_distance_yds", "smash_factor", "club_path_deg",
-        "face_angle_deg", "backspin_rpm",
+        "carry_distance_yds",
+        "smash_factor",
+        "club_path_deg",
+        "face_angle_deg",
+        "backspin_rpm",
     ]
     clubs = list(session_analysis.get("per_club_stats", {}).keys())
     results = []

@@ -35,6 +35,7 @@ def _get_crewai_tool_decorator():
     global _crewai_tool
     if _crewai_tool is None:
         from crewai.tools import tool as crewai_tool
+
         _crewai_tool = crewai_tool
     return _crewai_tool
 
@@ -46,6 +47,7 @@ _resolve_date = resolve_date
 # ---------------------------------------------------------------------------
 # Core session download logic (sync wrapper around async scraper)
 # ---------------------------------------------------------------------------
+
 
 class RapsodoCoachTool:
     """
@@ -72,9 +74,9 @@ class RapsodoCoachTool:
               - frame_count: total key frames extracted
         """
         # Lazy imports so this module is importable without playwright/crewai installed
-        from rapsodo_scraper import fetch_session
+        from history_tracker import get_all_trends_for_session, upsert_session
         from preprocessor import preprocess_session
-        from history_tracker import upsert_session, get_all_trends_for_session
+        from rapsodo_scraper import fetch_session
 
         resolved_date = resolve_date(session_date)
         print(f"\n[RapsodoCoachTool] Starting pipeline for {resolved_date}...")
@@ -97,14 +99,13 @@ class RapsodoCoachTool:
                 "success": False,
                 "session_date": resolved_date,
                 "error": "Session found but no shots were extracted. "
-                         "The intercepted API responses may use an unexpected format.",
+                "The intercepted API responses may use an unexpected format.",
                 "session_path": session_path,
                 "debug_hint": "Run with debug=True to inspect the browser and check network requests.",
             }
 
         # 2. Preprocess (stats + key frames)
-        from preprocessor import preprocess_session
-        from history_tracker import upsert_session, get_all_trends_for_session
+
         prep_result = preprocess_session(session_path, shots)
 
         # 3. Update history database
@@ -185,6 +186,7 @@ def _make_crewai_tool():
 try:
     download_rapsodo_session = _make_crewai_tool()
 except Exception:
+
     def download_rapsodo_session(session_date: str) -> str:  # type: ignore[misc]
         """Fallback when crewai is not installed."""
         return json.dumps(_tool_instance.run(session_date), default=str)
