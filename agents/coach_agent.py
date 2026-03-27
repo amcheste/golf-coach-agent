@@ -12,7 +12,7 @@ import base64
 import json
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from crewai import Agent, Crew, Process, Task
 from dotenv import load_dotenv
@@ -134,7 +134,7 @@ def _vision_with_anthropic(system_prompt: str, user_prompt: str, shots: list, ap
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
-    content = [{"type": "text", "text": user_prompt}]
+    content: list[Any] = [{"type": "text", "text": user_prompt}]
 
     for shot in shots:
         frames = shot.get("frames", {})
@@ -179,7 +179,7 @@ def _vision_with_openai(system_prompt: str, user_prompt: str, shots: list, api_k
     messages = [
         {"role": "system", "content": system_prompt},
     ]
-    content = [{"type": "text", "text": user_prompt}]
+    content: list[Any] = [{"type": "text", "text": user_prompt}]
 
     for shot in shots:
         frames = shot.get("frames", {})
@@ -205,7 +205,7 @@ def _vision_with_openai(system_prompt: str, user_prompt: str, shots: list, api_k
     messages.append({"role": "user", "content": content})  # type: ignore[dict-item]
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=messages,  # type: ignore[list-item]
+        messages=messages,  # type: ignore[arg-type]
         max_tokens=1500,
     )
     return response.choices[0].message.content or ""
