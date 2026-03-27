@@ -165,7 +165,7 @@ def _vision_with_anthropic(system_prompt: str, user_prompt: str, shots: list, ap
         model="claude-sonnet-4-6",
         max_tokens=1500,
         system=system_prompt,
-        messages=[{"role": "user", "content": content}],  # type: ignore[list-item]
+        messages=[{"role": "user", "content": content}],  # type: ignore[dict-item,typeddict-item]
     )
     first_block = response.content[0]
     return first_block.text if hasattr(first_block, "text") else ""
@@ -202,10 +202,10 @@ def _vision_with_openai(system_prompt: str, user_prompt: str, shots: list, api_k
                     }
                 )
 
-    messages.append({"role": "user", "content": content})  # type: ignore[arg-type]
+    messages.append({"role": "user", "content": content})  # type: ignore[dict-item]
     response = client.chat.completions.create(
         model="gpt-4o",
-        messages=messages,  # type: ignore[arg-type]
+        messages=messages,  # type: ignore[list-item]
         max_tokens=1500,
     )
     return response.choices[0].message.content or ""
