@@ -23,26 +23,26 @@ pip install -r requirements.txt -r requirements-dev.txt
 playwright install chromium
 ```
 
-## Pull Request Process
+## Branching, Commits, and Releases
 
-1. **Fork** the repo and create a branch from `main`:
-   ```bash
-   git checkout -b fix/scraper-field-mapping
-   ```
+The branching strategy, commit convention, and release process follow the canonical rules documented in my engineering handbook:
 
-2. **Make your changes.** Keep each PR focused on one concern.
+- **Why:** [Branching Strategy philosophy](https://github.com/amcheste/engineering-handbook/blob/main/docs/philosophies/branching-strategy.md)
+- **How:** [Branching & Releases workflow](https://github.com/amcheste/engineering-handbook/blob/main/docs/workflows/branching-and-releases.md)
 
-3. **Run the checks locally** before pushing:
-   ```bash
-   ruff check .
-   mypy src/ tools/ agents/
-   pytest tests/ -v
-   ```
-   CI will run these automatically, but catching them locally saves a round trip.
+In short: branch from `develop`, one logical change per PR, [Conventional Commits](https://www.conventionalcommits.org/) (`feat:` / `fix:` / `docs:` / `chore:` / `refactor:`, `!` for breaking), and releases are cut by `/publish-release` with a CLI merge from `develop` to `main` (never GitHub's merge button).
 
-4. **Write or update tests** for any logic changes in `src/`. The scraper and preprocessor have pure-logic functions (stats, date parsing, frame position math) that are fully testable without R-Cloud credentials.
+## Pull Request Checklist
 
-5. **Open a PR** against `main` with a clear description of what changed and why.
+Before pushing, run the checks locally:
+```bash
+ruff check .
+mypy src/ tools/ agents/
+pytest tests/ -v
+```
+CI will run these automatically, but catching them locally saves a round trip.
+
+Write or update tests for any logic changes in `src/`. The scraper and preprocessor have pure-logic functions (stats, date parsing, frame position math) that are fully testable without R-Cloud credentials.
 
 ## What Requires R-Cloud Credentials
 
@@ -58,15 +58,6 @@ Everything else — stats, frame extraction, date parsing, history queries, the 
 - **Linter:** `ruff check` — no warnings expected on merge
 - **Type hints:** encouraged in `src/` and `tools/`; `mypy` runs in CI with `--ignore-missing-imports`
 - **Comments:** only where logic isn't self-evident; avoid restating what the code does
-
-## Commit Messages
-
-Use the imperative present tense and keep the subject line under 72 characters:
-```
-fix: handle missing sidespin field in shot normalization
-feat: add spin axis trend to coach report
-refactor: split preprocessor into stats and frame modules
-```
 
 ## Reporting Scraper Breakage
 
