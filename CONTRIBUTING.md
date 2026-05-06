@@ -1,14 +1,14 @@
 # Contributing to Golf Coach Agent
 
-Thanks for your interest in contributing. This project is a personal AI coaching tool built around the Rapsodo MLM2PRO, and contributions are welcome — whether that's bug fixes, new club mappings, better frame extraction, or improved coaching prompts.
+Thanks for your interest in contributing. This project is a personal AI coaching tool built around the Rapsodo MLM2PRO, and contributions are welcome, whether that's bug fixes, new club mappings, better frame extraction, or improved coaching prompts.
 
 ## Ways to Contribute
 
-- **Bug reports** — open a GitHub Issue with steps to reproduce and the relevant terminal output
-- **Scraper fixes** — R-Cloud's internal API changes occasionally; PRs that update field mappings or selector logic are high value
-- **Better coaching prompts** — if you have golf instruction expertise, improvements to the Coach Agent persona and output format are welcome
-- **New metrics / analysis** — the preprocessor and history tracker are designed to be extended
-- **Tests** — more unit tests for edge cases in date parsing, stats, frame extraction
+- **Bug reports.** Open a GitHub Issue with steps to reproduce and the relevant terminal output.
+- **Scraper fixes.** R-Cloud's internal API changes occasionally; PRs that update field mappings or selector logic are high value.
+- **Better coaching prompts.** If you have golf instruction expertise, improvements to the Coach Agent persona and output format are welcome.
+- **New metrics / analysis.** The preprocessor and history tracker are designed to be extended.
+- **Tests.** More unit tests for edge cases in date parsing, stats, frame extraction.
 
 ## Development Setup
 
@@ -50,12 +50,12 @@ The scraper (`src/rapsodo_scraper.py`) cannot be integration-tested in CI becaus
 - Test manually with `--debug` mode so you can see the browser
 - Include notes in your PR describing what you observed in DevTools → Network tab
 
-Everything else — stats, frame extraction, date parsing, history queries, the Coach Agent prompt — can be tested without credentials.
+Everything else (stats, frame extraction, date parsing, history queries, the Coach Agent prompt) can be tested without credentials.
 
 ## Code Style
 
 - **Formatter:** `ruff format` (line length 100)
-- **Linter:** `ruff check` — no warnings expected on merge
+- **Linter:** `ruff check`. No warnings expected on merge.
 - **Type hints:** encouraged in `src/` and `tools/`; `mypy` runs in CI with `--ignore-missing-imports`
 - **Comments:** only where logic isn't self-evident; avoid restating what the code does
 
