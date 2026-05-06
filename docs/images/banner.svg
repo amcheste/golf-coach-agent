@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 400" width="1200" height="400">
+  <rect width="1200" height="400" fill="#0B0B0C"/>
+
+  <text x="80" y="170" font-family="Helvetica, Arial, sans-serif" font-size="84" font-weight="700" fill="#ffffff">Golf Coach Agent</text>
+
+  <rect x="80" y="195" width="64" height="4" fill="#1F4D3A"/>
+
+  <text x="80" y="250" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="400" fill="#cccccc">AI swing analysis from Rapsodo MLM2PRO sessions.</text>
+
+  <text x="80" y="290" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="500" fill="#1F4D3A">One flaw, one drill, one target metric.</text>
+</svg>

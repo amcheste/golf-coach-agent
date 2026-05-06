@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/banner.png" alt="Golf Coach Agent" width="800">
+</p>
+
 # Golf Coach Agent
 
 An AI-powered golf coaching system that automatically downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes your swing metrics and video frames with a Vision LLM, and delivers a focused coaching report — one flaw, one drill, one target metric.
