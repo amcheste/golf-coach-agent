@@ -1,5 +1,9 @@
 # Golf Coach Agent
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-1F4D3A.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-0B0B0C.svg)](CHANGELOG.md)
+[![Python](https://img.shields.io/badge/python-3.11+-0B0B0C.svg)](https://www.python.org/downloads/)
+
 An AI-powered golf coaching system that automatically downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes your swing metrics and video frames with a Vision LLM, and delivers a focused coaching report — one flaw, one drill, one target metric.
 
 ## Architecture
