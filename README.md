@@ -4,7 +4,7 @@
 
 # Golf Coach Agent
 
-An AI-powered golf coaching system that automatically downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes your swing metrics and video frames with a Vision LLM, and delivers a focused coaching report — one flaw, one drill, one target metric.
+An AI-powered golf coaching system that automatically downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes your swing metrics and video frames with a Vision LLM, and delivers a focused coaching report. One flaw, one drill, one target metric.
 
 ## Architecture
 
@@ -80,7 +80,7 @@ python scripts/initial_login.py
 
 A Chromium window will open. The script will auto-fill your credentials. If R-Cloud sends an email OTP, check your inbox, enter it in the browser, and press Enter in the terminal once you can see your sessions dashboard.
 
-This saves `config/storage_state.json` — your session token. After this, the system runs fully headless.
+This saves `config/storage_state.json`, your session token. After this, the system runs fully headless.
 
 > **Security note:** `storage_state.json` is gitignored. Never commit it. Treat it like a password.
 
@@ -155,7 +155,7 @@ rapsodo_vault/
     └── coaching_report.md     # The final coaching report
 ```
 
-The `rapsodo_vault/` directory is gitignored — videos and images stay local.
+The `rapsodo_vault/` directory is gitignored. Videos and images stay local.
 
 ### Sample Coaching Report
 
