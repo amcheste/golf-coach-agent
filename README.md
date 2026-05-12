@@ -1,10 +1,21 @@
+<div align="center">
+
+<img src="docs/images/banner.png" alt="Golf Coach Agent" width="100%" />
+
 # Golf Coach Agent
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-1F4D3A.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-0B0B0C.svg)](CHANGELOG.md)
-[![Python](https://img.shields.io/badge/python-3.11+-0B0B0C.svg)](https://www.python.org/downloads/)
+**An AI-powered golf coaching system. Downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes swing metrics and video frames with a Vision LLM, and delivers a focused coaching report.**
 
-An AI-powered golf coaching system that automatically downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes your swing metrics and video frames with a Vision LLM, and delivers a focused coaching report — one flaw, one drill, one target metric.
+[![CI](https://github.com/amcheste/golf-coach-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/amcheste/golf-coach-agent/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/amcheste/golf-coach-agent?label=version&sort=semver&color=0B0B0C)](https://github.com/amcheste/golf-coach-agent/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-1F4D3A.svg)](LICENSE)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/amcheste/golf-coach-agent/badge)](https://scorecard.dev/viewer/?uri=github.com/amcheste/golf-coach-agent)
+
+</div>
+
+---
+
+One flaw, one drill, one target metric.
 
 ## Architecture
 
@@ -80,7 +91,7 @@ python scripts/initial_login.py
 
 A Chromium window will open. The script will auto-fill your credentials. If R-Cloud sends an email OTP, check your inbox, enter it in the browser, and press Enter in the terminal once you can see your sessions dashboard.
 
-This saves `config/storage_state.json` — your session token. After this, the system runs fully headless.
+This saves `config/storage_state.json`, your session token. After this, the system runs fully headless.
 
 > **Security note:** `storage_state.json` is gitignored. Never commit it. Treat it like a password.
 
@@ -155,7 +166,7 @@ rapsodo_vault/
     └── coaching_report.md     # The final coaching report
 ```
 
-The `rapsodo_vault/` directory is gitignored — videos and images stay local.
+The `rapsodo_vault/` directory is gitignored. Videos and images stay local.
 
 ### Sample Coaching Report
 
@@ -175,13 +186,13 @@ An over-the-top downswing initiated by the right shoulder, causing the steep out
 path that produces the push-slice pattern visible in both the data and frames.
 
 ## The Prescription
-- Drill: "Right Pocket Drill" — feel the right hip pocket moving toward the target on
+- Drill: "Right Pocket Drill". Feel the right hip pocket moving toward the target on
   the downswing before the arms move. Keep the right shoulder passive and low through impact.
 - Feel Cue: "Shallow the club by feeling like the right elbow drops into your right hip pocket"
 - Target Metric for Next Session: Driver Club Path within -1° to +1°
 
 ## Historical Context
-Club path has trended from -2.1° (3 sessions ago) to -4.2° today — this is worsening.
+Club path has trended from -2.1° (3 sessions ago) to -4.2° today. This is worsening.
 The face has stayed relatively stable, meaning the path drift is the primary driver of the miss.
 ```
 

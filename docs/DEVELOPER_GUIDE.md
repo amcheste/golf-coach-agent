@@ -71,7 +71,7 @@ This module is **async throughout** (`async_playwright`, `aiofiles`). The `fetch
 
 ### `src/preprocessor.py`
 
-Pure data transformation — no network calls. Responsibilities:
+Pure data transformation. No network calls. Responsibilities:
 
 - **Stats:** Per-club averages and standard deviations for all key metrics
 - **Outlier detection:** Best/worst 3 shots per club by smash factor
@@ -84,10 +84,10 @@ The impact frame detection (`_detect_impact_frame`) uses frame differencing in t
 
 SQLite persistence. Two tables:
 
-- `session_summary` — one row per (date, club) with per-club averages. Unique constraint on `(session_date, club)` so re-running a session date does an upsert
-- `raw_shots` — every individual shot for granular queries
+- `session_summary`. One row per (date, club) with per-club averages. Unique constraint on `(session_date, club)` so re-running a session date does an upsert
+- `raw_shots`. Every individual shot for granular queries
 
-`get_trend_summary()` classifies direction as improving/worsening/stable using a 3% threshold relative to the first recorded value. The "improving" direction is metric-dependent — higher carry is good, higher path deviation is bad.
+`get_trend_summary()` classifies direction as improving/worsening/stable using a 3% threshold relative to the first recorded value. The "improving" direction is metric-dependent. Higher carry is good, higher path deviation is bad.
 
 ### `tools/rapsodo_tool.py`
 
@@ -101,8 +101,8 @@ Thin orchestration wrapper. Responsibilities:
 
 Two concerns in one file:
 
-1. **Vision analysis** (`analyze_swing_frames_with_vision`) — selects the 3 most instructive shots (worst/median/best smash factor), encodes their frames as base64, and calls either Claude or GPT-4o with a structured coaching prompt
-2. **CrewAI definitions** — `build_scout_agent()`, `build_coach_agent()`, and corresponding task builders. The Scout agent uses the `download_rapsodo_session` tool; the Coach agent receives the session package + vision output as context
+1. **Vision analysis** (`analyze_swing_frames_with_vision`). Selects the 3 most instructive shots (worst/median/best smash factor), encodes their frames as base64, and calls either Claude or GPT-4o with a structured coaching prompt
+2. **CrewAI definitions**. `build_scout_agent()`, `build_coach_agent()`, and corresponding task builders. The Scout agent uses the `download_rapsodo_session` tool; the Coach agent receives the session package + vision output as context
 
 ### `agents/orchestrator.py`
 
@@ -227,7 +227,7 @@ If you see 0 captures, the scraper navigated correctly but Rapsodo changed their
 
 ### If shot metrics aren't being extracted from captured responses
 
-The `_extract_shots_from_captured()` function looks for lists of dicts with ball speed / launch angle fields. If Rapsodo wraps the shots differently, check `shots_raw.json` in the session directory after a run — it contains the raw intercepted payloads. Add the new wrapper key to the `for key in [...]` list in `_extract_shots_from_captured()`.
+The `_extract_shots_from_captured()` function looks for lists of dicts with ball speed / launch angle fields. If Rapsodo wraps the shots differently, check `shots_raw.json` in the session directory after a run. It contains the raw intercepted payloads. Add the new wrapper key to the `for key in [...]` list in `_extract_shots_from_captured()`.
 
 ### If `_normalize_shot()` is missing a field
 
@@ -286,7 +286,7 @@ The impact frame uses motion-based detection in `_detect_impact_frame()` as long
 
 ## Understanding the Network Interception
 
-R-Cloud is a modern SPA (Single Page Application). When you navigate to a session, the browser makes background fetch requests to Rapsodo's API to load shot data. These requests happen *after* the page URL changes — which is why simple HTTP scraping won't work.
+R-Cloud is a modern SPA (Single Page Application). When you navigate to a session, the browser makes background fetch requests to Rapsodo's API to load shot data. These requests happen *after* the page URL changes. Which is why simple HTTP scraping won't work.
 
 Playwright's `page.on("response", handler)` fires for every HTTP response the browser receives, including background API calls. By attaching this listener before navigating to the session, we capture all the data that the page uses to render itself.
 
@@ -312,7 +312,7 @@ The exact URL path and field names have varied across R-Cloud versions, which is
 
 The vision analysis sends up to 12 images (3 shots × 4 frames each) per request. At ~200KB per JPEG, this is well within Claude's and GPT-4o's context limits.
 
-The shot selection logic in `analyze_swing_frames_with_vision()` deliberately picks worst, best, and median shots by smash factor. This gives the Vision LLM a comparison set — it can note what the best shots look like mechanically and contrast them with the worst, which is far more instructive than analyzing random shots.
+The shot selection logic in `analyze_swing_frames_with_vision()` deliberately picks worst, best, and median shots by smash factor. This gives the Vision LLM a comparison set. It can note what the best shots look like mechanically and contrast them with the worst, which is far more instructive than analyzing random shots.
 
 **Token cost rough estimate per session:**
 - Claude claude-sonnet-4-6 with 12 images + ~800 token prompt: ~4,000–6,000 input tokens
