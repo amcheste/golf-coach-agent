@@ -1,10 +1,21 @@
-<p align="center">
-  <img src="docs/images/banner.png" alt="Golf Coach Agent" width="800">
-</p>
+<div align="center">
+
+<img src="docs/images/banner.png" alt="Golf Coach Agent" width="100%" />
 
 # Golf Coach Agent
 
-An AI-powered golf coaching system that automatically downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes your swing metrics and video frames with a Vision LLM, and delivers a focused coaching report. One flaw, one drill, one target metric.
+**An AI-powered golf coaching system. Downloads your Rapsodo MLM2PRO session data from R-Cloud, analyzes swing metrics and video frames with a Vision LLM, and delivers a focused coaching report.**
+
+[![CI](https://github.com/amcheste/golf-coach-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/amcheste/golf-coach-agent/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/v/tag/amcheste/golf-coach-agent?label=version&sort=semver&color=0B0B0C)](https://github.com/amcheste/golf-coach-agent/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-1F4D3A.svg)](LICENSE)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/amcheste/golf-coach-agent/badge)](https://scorecard.dev/viewer/?uri=github.com/amcheste/golf-coach-agent)
+
+</div>
+
+---
+
+One flaw, one drill, one target metric.
 
 ## Architecture
 
@@ -175,13 +186,13 @@ An over-the-top downswing initiated by the right shoulder, causing the steep out
 path that produces the push-slice pattern visible in both the data and frames.
 
 ## The Prescription
-- Drill: "Right Pocket Drill" — feel the right hip pocket moving toward the target on
+- Drill: "Right Pocket Drill". Feel the right hip pocket moving toward the target on
   the downswing before the arms move. Keep the right shoulder passive and low through impact.
 - Feel Cue: "Shallow the club by feeling like the right elbow drops into your right hip pocket"
 - Target Metric for Next Session: Driver Club Path within -1° to +1°
 
 ## Historical Context
-Club path has trended from -2.1° (3 sessions ago) to -4.2° today — this is worsening.
+Club path has trended from -2.1° (3 sessions ago) to -4.2° today. This is worsening.
 The face has stayed relatively stable, meaning the path drift is the primary driver of the miss.
 ```
 
