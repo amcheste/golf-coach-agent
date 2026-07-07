@@ -42,7 +42,7 @@ One flaw, one drill, one target metric.
 ```
 
 **Data flow for one coaching session:**
-1. Playwright logs into R-Cloud, intercepts JSON API responses, downloads videos
+1. Playwright authenticates with R-Cloud, then fetches shot data via previously learned API endpoints (falling back to UI navigation + JSON interception on first use), and downloads videos
 2. Preprocessor computes per-club stats and extracts 4 key frames per shot
 3. Vision LLM (Claude or GPT-4o) analyzes address/backswing/impact/follow-through frames
 4. Coach Agent combines metrics + vision output into one targeted report
