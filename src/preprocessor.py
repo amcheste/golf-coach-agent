@@ -10,13 +10,14 @@ Takes raw session data from the scraper and produces:
 
 import json
 import math
-import os
 from pathlib import Path
 from typing import Optional
 
 import cv2
 import numpy as np
 from PIL import Image, ImageEnhance
+
+from utils import sanitize_club
 
 VAULT_DIR = Path(__file__).parent.parent / "rapsodo_vault"
 
@@ -300,9 +301,10 @@ def preprocess_session(session_path: str, shots: list[dict]) -> dict:
             "frames": {},
         }
 
-        # Find videos for this shot
+        # Find videos for this shot — filename must be built with the same
+        # sanitizer the scraper used when writing it
         for video_type in ["impact", "shot"]:
-            pattern = f"shot_{shot_num}_{club.replace(' ', '')}_{carry}yds_{video_type}.mp4"
+            pattern = f"shot_{shot_num}_{sanitize_club(club)}_{carry}yds_{video_type}.mp4"
             video_path = video_dir / pattern
             if video_path.exists():
                 shot_meta["videos"][video_type] = str(video_path)

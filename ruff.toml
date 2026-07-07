@@ -5,7 +5,6 @@ target-version = "py311"
 select = ["E", "F", "W", "I"]
 ignore = [
     "E501",  # line too long — handled by formatter
-    "F401",  # unused imports in __init__.py files
     "E402",  # module import not at top — expected after sys.path.insert() in non-package layout
 ]
 

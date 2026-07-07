@@ -53,7 +53,6 @@ One flaw, one drill, one target metric.
 - Python 3.11+
 - Rapsodo MLM2PRO with an **active Premium Membership** (required for R-Cloud sync)
 - An API key for either **Anthropic** (Claude) or **OpenAI** (GPT-4o)
-- `gh` CLI installed and authenticated (`gh auth login`)
 
 ## Setup
 

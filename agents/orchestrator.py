@@ -19,7 +19,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Optional
 
 from crewai import Crew, Process
 from dotenv import load_dotenv
@@ -33,10 +32,10 @@ from coach_agent import (
     analyze_swing_frames_with_vision,
     build_coach_agent,
     build_coach_task,
-    build_scout_agent,
-    build_scout_task,
 )
-from rapsodo_tool import RapsodoCoachTool, _resolve_date
+from rapsodo_tool import RapsodoCoachTool
+
+from utils import resolve_date
 
 # ---------------------------------------------------------------------------
 # Main pipeline
@@ -53,8 +52,11 @@ def run_coaching_session(session_date: str, debug: bool = False) -> str:
 
     Returns:
         Coaching report as a formatted string.
+
+    Raises:
+        RuntimeError: If the session could not be downloaded or contained no shots.
     """
-    resolved_date = _resolve_date(session_date)
+    resolved_date = resolve_date(session_date)
     print(f"\n{'=' * 60}")
     print(f"  Golf Coach Agent — Session: {resolved_date}")
     print(f"{'=' * 60}\n")
@@ -66,10 +68,9 @@ def run_coaching_session(session_date: str, debug: bool = False) -> str:
 
     if not session_package.get("success"):
         error = session_package.get("error", "Unknown error")
-        print(f"\n[Orchestrator] Pipeline failed: {error}")
         if "debug_hint" in session_package:
             print(f"[Hint] {session_package['debug_hint']}")
-        return f"Error: Could not retrieve session for {resolved_date}. {error}"
+        raise RuntimeError(f"Could not retrieve session for {resolved_date}: {error}")
 
     print(
         f"\n[Orchestrator] Session loaded: {session_package['shot_count']} shots, "
@@ -102,48 +103,7 @@ def run_coaching_session(session_date: str, debug: bool = False) -> str:
         default=str,
     )
 
-    coach_task_description = f"""
-The Scout has already downloaded and processed the session. Here is the complete data package:
-
-SESSION DATA:
-{session_summary_for_coach}
-
-VISION ANALYSIS OF SWING FRAMES:
-{vision_analysis}
-
-Using the data AND the vision analysis, write a complete coaching report in this exact format:
-
-## Session Snapshot
-- [Overall performance in 1 sentence]
-- [Best performing club: name + why]
-- [Biggest area of concern: metric + what it means]
-
-## The Big Miss
-- **Data Evidence:** [Specific metric numbers that reveal the pattern — path, face, spin, smash]
-- **Visual Evidence:** [What was observed in the swing frames and at which position]
-
-## Root Cause
-[One clear sentence naming the single mechanical flaw causing the Big Miss]
-
-## The Prescription
-- **Drill:** [Name of drill + 2-sentence description of how to do it]
-- **Feel Cue:** [What it should feel like internally when done correctly]
-- **Target Metric for Next Session:** [One specific number to chase]
-
-## Historical Context
-[1-2 sentences referencing the trend data — is this pattern getting better or worse?]
-"""
-
-    from crewai import Task
-
-    final_coach_task = Task(
-        description=coach_task_description,
-        expected_output=(
-            "A structured coaching report with Session Snapshot, Big Miss, Root Cause, "
-            "Prescription (with drill, feel cue, and target metric), and Historical Context."
-        ),
-        agent=coach,
-    )
+    final_coach_task = build_coach_task(coach, session_summary_for_coach, vision_analysis)
 
     crew = Crew(
         agents=[coach],
@@ -200,8 +160,11 @@ Examples:
     )
     args = parser.parse_args()
 
-    report = run_coaching_session(args.date, debug=args.debug)
-    sys.exit(0 if report and not report.startswith("Error:") else 1)
+    try:
+        run_coaching_session(args.date, debug=args.debug)
+    except (RuntimeError, ValueError) as e:
+        print(f"\n[Orchestrator] Pipeline failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

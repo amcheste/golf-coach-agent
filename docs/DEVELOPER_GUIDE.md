@@ -37,7 +37,7 @@ golf-coach-agent/
 ├── tests/
 │   ├── test_date_resolver.py
 │   ├── test_stats.py
-│   └── test_frame_extraction.py
+│   └── test_history_tracker.py
 ├── docs/
 │   └── DEVELOPER_GUIDE.md   # This file
 ├── rapsodo_vault/           # gitignored — all downloaded data lives here
@@ -102,7 +102,7 @@ Thin orchestration wrapper. Responsibilities:
 Two concerns in one file:
 
 1. **Vision analysis** (`analyze_swing_frames_with_vision`). Selects the 3 most instructive shots (worst/median/best smash factor), encodes their frames as base64, and calls either Claude or GPT-4o with a structured coaching prompt
-2. **CrewAI definitions**. `build_scout_agent()`, `build_coach_agent()`, and corresponding task builders. The Scout agent uses the `download_rapsodo_session` tool; the Coach agent receives the session package + vision output as context
+2. **CrewAI definitions**. `build_crew_llm()` picks the LLM from whichever API key is set (CrewAI would otherwise default to OpenAI), and `build_coach_agent()` / `build_coach_task()` define the Coach, which receives the session package + vision output as context
 
 ### `agents/orchestrator.py`
 
@@ -144,7 +144,7 @@ RapsodoCoachTool.run("2026-03-24")
 analyze_swing_frames_with_vision()
   │  Select worst/median/best shots
   │  Encode frames as base64
-  └─► Claude claude-sonnet-4-6 / GPT-4o → vision_analysis string
+  └─► Claude / GPT-4o (see ANTHROPIC_MODEL / OPENAI_MODEL env vars) → vision_analysis string
   │
   ▼
 CrewAI Coach Agent Task
@@ -315,7 +315,7 @@ The vision analysis sends up to 12 images (3 shots × 4 frames each) per request
 The shot selection logic in `analyze_swing_frames_with_vision()` deliberately picks worst, best, and median shots by smash factor. This gives the Vision LLM a comparison set. It can note what the best shots look like mechanically and contrast them with the worst, which is far more instructive than analyzing random shots.
 
 **Token cost rough estimate per session:**
-- Claude claude-sonnet-4-6 with 12 images + ~800 token prompt: ~4,000–6,000 input tokens
+- Claude with 12 images + ~800 token prompt: ~4,000–6,000 input tokens
 - At current pricing this is well under $0.10 per coaching session
 
 If you want to reduce cost further, change the `candidates` selection in `analyze_swing_frames_with_vision()` to only send the worst 1–2 shots.

@@ -3,9 +3,7 @@ Tests for history_tracker.py — uses a temp SQLite database, no credentials nee
 """
 
 import sys
-import tempfile
 from pathlib import Path
-from unittest import mock
 
 import pytest
 
@@ -23,7 +21,6 @@ def isolated_db(tmp_path, monkeypatch):
 
 
 from history_tracker import (
-    TRACKED_METRICS,
     get_trend,
     get_trend_summary,
     list_sessions,
@@ -114,6 +111,27 @@ class TestUpsertSession:
         assert len(seven_trend) == 1
         assert len(driver_trend) == 1
 
+    def test_raw_shots_not_duplicated_on_rerun(self):
+        import sqlite3
+
+        import history_tracker
+
+        upsert_session(
+            "2026-03-01", make_analysis("7Iron", 150.0, 1.42, -2.0), make_shots("7Iron", 3)
+        )
+        upsert_session(
+            "2026-03-01", make_analysis("7Iron", 155.0, 1.43, -1.5), make_shots("7Iron", 3)
+        )
+
+        conn = sqlite3.connect(history_tracker.DB_PATH)
+        try:
+            count = conn.execute(
+                "SELECT COUNT(*) FROM raw_shots WHERE session_date = '2026-03-01'"
+            ).fetchone()[0]
+        finally:
+            conn.close()
+        assert count == 3  # re-running the same date must replace, not append
+
 
 # ---------------------------------------------------------------------------
 # get_trend
@@ -185,18 +203,41 @@ class TestGetTrendSummary:
         summary = get_trend_summary("7Iron", "carry_distance_yds", 5)
         assert summary["direction"] == "insufficient_data"
 
-    def test_worsening_path_means_path_increasing(self):
-        # Club path going from -2 to -5 = worsening (bigger deviation)
+    def test_path_drifting_away_from_zero_is_worsening(self):
+        # Club path going from -2 to -5 = worsening (bigger deviation from zero)
         for i, path in enumerate([-2.0, -3.5, -5.0], start=1):
             upsert_session(
                 f"2026-03-0{i}", make_analysis("7Iron", 150.0, 1.42, path), make_shots("7Iron")
             )
         summary = get_trend_summary("7Iron", "club_path_deg", 3)
-        # path is not in the "higher = improving" list, so going down = improving
-        assert summary["direction"] in (
-            "improving",
-            "worsening",
-        )  # direction depends on sign convention
+        assert summary["direction"] == "worsening"
+
+    def test_path_moving_toward_zero_is_improving(self):
+        # Club path going from -5 to -2 = improving, even though the signed value rose
+        for i, path in enumerate([-5.0, -3.5, -2.0], start=1):
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", 150.0, 1.42, path), make_shots("7Iron")
+            )
+        summary = get_trend_summary("7Iron", "club_path_deg", 3)
+        assert summary["direction"] == "improving"
+
+    def test_positive_path_drifting_up_is_worsening(self):
+        # In-to-out path growing from +1 to +4 is also a bigger deviation from zero
+        for i, path in enumerate([1.0, 2.5, 4.0], start=1):
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", 150.0, 1.42, path), make_shots("7Iron")
+            )
+        summary = get_trend_summary("7Iron", "club_path_deg", 3)
+        assert summary["direction"] == "worsening"
+
+    def test_path_crossing_zero_same_magnitude_is_stable(self):
+        # -3 -> +3 is the same distance from zero — not a worsening trend
+        for i, path in enumerate([-3.0, 0.5, 3.0], start=1):
+            upsert_session(
+                f"2026-03-0{i}", make_analysis("7Iron", 150.0, 1.42, path), make_shots("7Iron")
+            )
+        summary = get_trend_summary("7Iron", "club_path_deg", 3)
+        assert summary["direction"] == "stable"
 
     def test_summary_string_present(self):
         for i, carry in enumerate([145.0, 155.0], start=1):
