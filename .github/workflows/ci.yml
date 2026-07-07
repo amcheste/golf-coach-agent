@@ -79,9 +79,11 @@ jobs:
         run: pip install pip-audit
 
       - name: Audit dependencies
-        # CVE-2026-4539 (pygments) and CVE-2025-69872 (diskcache) are transitive
-        # dependencies with no fix version available yet — ignored pending upstream fixes.
+        # CVE-2026-4539 (pygments), CVE-2025-69872 (diskcache), and PYSEC-2026-311
+        # (chromadb) are transitive dependencies with no fix version available yet —
+        # ignored pending upstream fixes.
         run: |
           pip-audit -r requirements.txt --skip-editable \
             --ignore-vuln CVE-2026-4539 \
-            --ignore-vuln CVE-2025-69872
+            --ignore-vuln CVE-2025-69872 \
+            --ignore-vuln PYSEC-2026-311
