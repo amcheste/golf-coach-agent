@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   semgrep:
-    uses: amcheste/gh-workflows/.github/workflows/reusable-sast.yml@v1.1.0
+    uses: amcheste/gh-workflows/.github/workflows/reusable-sast.yml@v1.1.1
     with:
       semgrep-config: >-
         p/secrets
