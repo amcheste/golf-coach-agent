@@ -1,0 +1,16 @@
+version: 2
+
+updates:
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  # Keeps pinned action SHAs up to date automatically.
+  # PRs target develop so they go through normal review.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    labels:
+      - dependencies
+    commit-message:
+      prefix: chore

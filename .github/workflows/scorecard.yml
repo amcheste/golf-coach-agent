@@ -1,5 +1,9 @@
 name: OpenSSF Scorecard
 
+# Thin caller stub: logic lives in amcheste/gh-workflows (includes the
+# default-branch guard so pushes to non-default branches skip instead of
+# failing). Dependabot bumps the pin as gh-workflows releases.
+
 on:
   branch_protection_rule:
   schedule:
@@ -11,34 +15,5 @@ on:
 permissions: read-all
 
 jobs:
-  analysis:
-    name: Scorecard Analysis
-    runs-on: ubuntu-latest
-    continue-on-error: true  # Scorecard requires a public repo, fails silently on private repos
-    permissions:
-      security-events: write
-      id-token: write
-      contents: read
-      actions: read
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          persist-credentials: false
-
-      - uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
-        with:
-          results_file: results.sarif
-          results_format: sarif
-          publish_results: ${{ github.ref_name == github.event.repository.default_branch }}
-
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
-        with:
-          name: SARIF file
-          path: results.sarif
-          retention-days: 5
-
-      - uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
-        if: github.ref_name == github.event.repository.default_branch
-        continue-on-error: true
-        with:
-          sarif_file: results.sarif
+  scorecard:
+    uses: amcheste/gh-workflows/.github/workflows/reusable-scorecard.yml@v1.1.0

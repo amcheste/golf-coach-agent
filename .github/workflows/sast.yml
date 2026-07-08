@@ -1,10 +1,14 @@
 name: SAST
 
+# Thin caller stub: logic lives in amcheste/gh-workflows. Add language rule
+# packs via the semgrep-config input (p/secrets is the universal floor).
+# Dependabot bumps the pin as gh-workflows releases.
+
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   schedule:
     - cron: '0 2 * * 1'  # Every Monday at 02:00 UTC
 
@@ -13,24 +17,9 @@ permissions:
 
 jobs:
   semgrep:
-    name: Semgrep
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      security-events: write
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - uses: returntocorp/semgrep-action@713efdd345f3035192eaa63f56867b88e63e4e5d # v1
-        with:
-          config: >-
-            p/secrets
-            p/python
-            p/owasp-top-ten
-          generateSarif: "1"
-
-      - uses: github/codeql-action/upload-sarif@d4b3ca9fa7f69d38bfcd667bdc45bc373d16277e # v4
-        if: always() && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        with:
-          sarif_file: semgrep.sarif
+    uses: amcheste/gh-workflows/.github/workflows/reusable-sast.yml@v1.1.0
+    with:
+      semgrep-config: >-
+        p/secrets
+        p/owasp-top-ten
+        p/python
