@@ -1,0 +1,18 @@
+name: Release Drafter
+
+# Thin caller stub: logic lives in amcheste/gh-workflows. The category and
+# label mapping stays in this repo's .github/release-drafter.yml. Dependabot
+# bumps the pin as gh-workflows releases.
+
+on:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  draft:
+    uses: amcheste/gh-workflows/.github/workflows/reusable-release-drafter.yml@v1.1.0

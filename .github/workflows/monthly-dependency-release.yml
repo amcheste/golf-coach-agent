@@ -1,0 +1,20 @@
+name: Monthly Dependency Release
+
+# Thin caller stub: the logic lives in amcheste/gh-workflows as a reusable
+# workflow. This repo owns the schedule; the reusable owns the release
+# check, version bump, and PR creation. Pinned to an exact release tag;
+# Dependabot proposes bumps when gh-workflows cuts a new release. See
+# https://github.com/amcheste/engineering-handbook/blob/develop/docs/design/centralized-ci-workflows.md
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of each month at 09:00 UTC
+  workflow_dispatch:      # manual trigger for testing
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    uses: amcheste/gh-workflows/.github/workflows/reusable-monthly-dependency-release.yml@v1.1.0

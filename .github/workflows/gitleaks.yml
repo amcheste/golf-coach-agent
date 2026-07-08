@@ -1,0 +1,19 @@
+name: Gitleaks
+
+# Thin caller stub: the logic lives in amcheste/gh-workflows as a reusable
+# workflow. This repo pins an exact release tag; Dependabot proposes bumps
+# when gh-workflows cuts a new release. See
+# https://github.com/amcheste/engineering-handbook/blob/develop/docs/design/centralized-ci-workflows.md
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    uses: amcheste/gh-workflows/.github/workflows/reusable-gitleaks.yml@v1.1.0

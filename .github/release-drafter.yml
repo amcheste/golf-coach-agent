@@ -1,0 +1,53 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+# ── Auto-label PRs from conventional commit titles ────────────────────────────
+autolabeler:
+  - label: 'breaking-change'
+    title:
+      - '/^(feat|fix|docs|chore|refactor|test|style|perf|ci|build|revert)(\([^)]+\))?!:/i'
+  - label: 'feature'
+    title:
+      - '/^feat(\([^)]+\))?:/i'
+  - label: 'fix'
+    title:
+      - '/^fix(\([^)]+\))?:/i'
+  - label: 'docs'
+    title:
+      - '/^docs(\([^)]+\))?:/i'
+  - label: 'chore'
+    title:
+      - '/^(chore|refactor|test|style|perf|ci|build|revert)(\([^)]+\))?:/i'
+
+# ── Release note categories ───────────────────────────────────────────────────
+categories:
+  - title: '⚠️ Breaking Changes'
+    labels: ['breaking-change']
+  - title: '🚀 Features'
+    labels: ['feature', 'enhancement']
+  - title: '🐛 Bug Fixes'
+    labels: ['fix', 'bug']
+  - title: '📖 Documentation'
+    labels: ['docs', 'documentation']
+  - title: '🔧 Maintenance'
+    labels: ['chore', 'dependencies', 'refactor']
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+change-title-escapes: '\<*_&'
+
+version-resolver:
+  major:
+    labels: ['breaking-change']
+  minor:
+    labels: ['feature', 'enhancement']
+  patch:
+    labels: ['fix', 'bug', 'docs', 'documentation', 'chore', 'dependencies', 'refactor']
+  default: patch
+
+exclude-labels:
+  - 'skip-changelog'
+
+no-changes-template: '- No notable changes'
+
+template: |
+  $CHANGES
