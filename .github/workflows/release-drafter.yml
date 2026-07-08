@@ -15,4 +15,4 @@ permissions:
 
 jobs:
   draft:
-    uses: amcheste/gh-workflows/.github/workflows/reusable-release-drafter.yml@v1.1.0
+    uses: amcheste/gh-workflows/.github/workflows/reusable-release-drafter.yml@v1.1.1
