@@ -16,4 +16,4 @@ permissions:
 
 jobs:
   gitleaks:
-    uses: amcheste/gh-workflows/.github/workflows/reusable-gitleaks.yml@v1.1.0
+    uses: amcheste/gh-workflows/.github/workflows/reusable-gitleaks.yml@v1.1.1
