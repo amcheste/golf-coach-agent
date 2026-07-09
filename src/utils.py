@@ -2,10 +2,20 @@
 Shared utilities with no heavy dependencies — safe to import in tests.
 """
 
+import re
 from datetime import datetime, timedelta
-from typing import Optional
 
 from dateutil import parser as dateutil_parser
+
+
+def sanitize_club(club) -> str:
+    """
+    Normalize a club name for use in filenames, e.g. "7-Iron" -> "7Iron".
+    Both the scraper (writing video files) and the preprocessor (finding them)
+    must use this so filenames always match.
+    """
+    cleaned = re.sub(r"[^a-zA-Z0-9]", "", str(club or "Unknown"))
+    return cleaned or "Unknown"
 
 
 def resolve_date(date_input: str) -> str:
