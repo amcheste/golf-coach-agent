@@ -11,20 +11,16 @@ alongside the launch monitor metrics to find the root cause of misses.
 import base64
 import json
 import os
-from pathlib import Path
 from typing import Any, Optional
 
-from crewai import Agent, Crew, Process, Task
+from crewai import LLM, Agent, Task
 from dotenv import load_dotenv
 
 load_dotenv()
 
-import sys
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
-
-from rapsodo_tool import download_rapsodo_session
+# Model ids are overridable from the environment; empty values fall back to defaults.
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL") or "claude-sonnet-4-6"
+OPENAI_MODEL = os.getenv("OPENAI_MODEL") or "gpt-4o"
 
 # ---------------------------------------------------------------------------
 # Vision Analysis Helper
@@ -130,7 +126,7 @@ Shots being analyzed:
 
 
 def _vision_with_anthropic(system_prompt: str, user_prompt: str, shots: list, api_key: str) -> str:
-    """Call Claude claude-sonnet-4-6 with vision for swing analysis."""
+    """Call Claude with vision for swing analysis."""
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
@@ -162,7 +158,7 @@ def _vision_with_anthropic(system_prompt: str, user_prompt: str, shots: list, ap
                 )
 
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model=ANTHROPIC_MODEL,
         max_tokens=1500,
         system=system_prompt,
         messages=[{"role": "user", "content": content}],  # type: ignore[dict-item,typeddict-item]
@@ -204,7 +200,7 @@ def _vision_with_openai(system_prompt: str, user_prompt: str, shots: list, api_k
 
     messages.append({"role": "user", "content": content})  # type: ignore[dict-item]
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=OPENAI_MODEL,
         messages=messages,  # type: ignore[arg-type]
         max_tokens=1500,
     )
@@ -216,22 +212,17 @@ def _vision_with_openai(system_prompt: str, user_prompt: str, shots: list, api_k
 # ---------------------------------------------------------------------------
 
 
-def build_scout_agent() -> Agent:
-    """The Scout: responsible for downloading and packaging session data."""
-    return Agent(
-        role="Golf Data Scout",
-        goal=(
-            "Download the requested Rapsodo MLM2PRO session from R-Cloud, "
-            "extract all shot metrics and videos, and deliver a structured Session Package."
-        ),
-        backstory=(
-            "You are a meticulous data engineer specializing in sports analytics. "
-            "You interface with Rapsodo's R-Cloud portal to extract raw launch monitor data "
-            "and video files, then organize them into a clean package for the coaching team."
-        ),
-        tools=[download_rapsodo_session],
-        verbose=True,
-        allow_delegation=False,
+def build_crew_llm() -> LLM:
+    """
+    Pick the CrewAI LLM from whichever API key is configured. Without this,
+    CrewAI silently defaults to OpenAI and Anthropic-only setups fail.
+    """
+    if os.getenv("ANTHROPIC_API_KEY"):
+        return LLM(model=f"anthropic/{ANTHROPIC_MODEL}")
+    if os.getenv("OPENAI_API_KEY"):
+        return LLM(model=f"openai/{OPENAI_MODEL}")
+    raise RuntimeError(
+        "No LLM API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file."
     )
 
 
@@ -239,6 +230,7 @@ def build_coach_agent() -> Agent:
     """The Head Coach: analyzes data + vision output and writes the prescription."""
     return Agent(
         role="Elite Golf Teaching Professional",
+        llm=build_crew_llm(),
         goal=(
             "Analyze the Session Package data and swing frame analysis to identify "
             "the single most impactful mechanical flaw and deliver one clear, actionable prescription."
@@ -256,31 +248,18 @@ def build_coach_agent() -> Agent:
     )
 
 
-def build_scout_task(scout_agent: Agent, session_date: str) -> Task:
-    return Task(
-        description=(
-            f"Download the Rapsodo R-Cloud session for '{session_date}'. "
-            "Use the rapsodo_session_downloader tool and return the full session package JSON. "
-            "Include shot count, per-club stats, outlier shots, and confirm frames were extracted."
-        ),
-        expected_output=(
-            "A JSON string containing: session_date, shot_count, session_analysis "
-            "(per-club averages + outliers), trend_report, and frames_available list."
-        ),
-        agent=scout_agent,
-    )
-
-
-def build_coach_task(coach_agent: Agent, vision_analysis: str) -> Task:
+def build_coach_task(coach_agent: Agent, session_summary_json: str, vision_analysis: str) -> Task:
     return Task(
         description=f"""
-You have received the Session Package from the Scout, and a Vision Analysis of the swing frames.
+The Scout has already downloaded and processed the session. Here is the complete data package:
 
-VISION ANALYSIS:
+SESSION DATA:
+{session_summary_json}
+
+VISION ANALYSIS OF SWING FRAMES:
 {vision_analysis}
 
-Using the Scout's data AND the Vision Analysis above, write a complete coaching report
-following this exact format:
+Using the data AND the vision analysis, write a complete coaching report in this exact format:
 
 ## Session Snapshot
 - [Overall performance in 1 sentence]
@@ -304,7 +283,7 @@ following this exact format:
 """,
         expected_output=(
             "A structured coaching report with Session Snapshot, Big Miss, Root Cause, "
-            "Prescription, and Historical Context sections."
+            "Prescription (with drill, feel cue, and target metric), and Historical Context."
         ),
         agent=coach_agent,
     )

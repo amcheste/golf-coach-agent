@@ -1,6 +1,6 @@
 """
-Tests for natural language date resolution in src/utils.py
-No network calls, no credentials needed.
+Tests for src/utils.py — natural language date resolution and club name
+sanitization. No network calls, no credentials needed.
 """
 
 import sys
@@ -12,6 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from utils import resolve_date as _resolve_date
+from utils import sanitize_club
 
 TODAY = datetime.today()
 TODAY_STR = TODAY.strftime("%Y-%m-%d")
@@ -79,3 +80,19 @@ class TestResolveDateInvalid:
     def test_empty_raises(self):
         with pytest.raises((ValueError, Exception)):
             _resolve_date("")
+
+
+class TestSanitizeClub:
+    def test_plain_name_unchanged(self):
+        assert sanitize_club("Driver") == "Driver"
+
+    def test_strips_hyphens_and_spaces(self):
+        assert sanitize_club("7-Iron") == "7Iron"
+        assert sanitize_club("Pitching Wedge") == "PitchingWedge"
+
+    def test_none_becomes_unknown(self):
+        assert sanitize_club(None) == "Unknown"
+
+    def test_empty_becomes_unknown(self):
+        assert sanitize_club("") == "Unknown"
+        assert sanitize_club("--") == "Unknown"

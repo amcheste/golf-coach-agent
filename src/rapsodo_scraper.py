@@ -9,15 +9,13 @@ import asyncio
 import json
 import os
 import random
-import re
-import time
 from pathlib import Path
-from typing import Optional
-from urllib.parse import urlparse
 
 import aiofiles
 from dotenv import load_dotenv
 from playwright.async_api import BrowserContext, Page, Response, async_playwright
+
+from utils import sanitize_club
 
 load_dotenv()
 
@@ -109,6 +107,15 @@ async def _get_authenticated_context(playwright, debug: bool = False):
         print("[Auth] Loading saved session state...")
         context = await browser.new_context(storage_state=str(STATE_FILE))
     else:
+        if not headed:
+            # The login flow needs a visible browser for MFA/OTP — blocking on
+            # input() with a headless browser would hang forever.
+            await browser.close()
+            raise RuntimeError(
+                "No saved R-Cloud session found and the browser is headless, so the "
+                "login/MFA flow cannot be completed. Run `python scripts/initial_login.py` "
+                "once to save a session, or re-run with debug=True for a visible browser."
+            )
         print("[Auth] No saved session found — starting manual login flow...")
         context = await browser.new_context()
         page = await context.new_page()
@@ -144,13 +151,15 @@ async def _find_session_for_date(page: Page, target_date: str) -> bool:
     # Convert YYYY-MM-DD to multiple display formats for matching
     from datetime import datetime
 
+    # Built manually rather than with %-m/%-d strftime codes, which are not
+    # supported on Windows.
     dt = datetime.strptime(target_date, "%Y-%m-%d")
     date_variants = [
         target_date,  # 2026-03-25
-        dt.strftime("%-m/%-d/%Y"),  # 3/25/2026
-        dt.strftime("%m/%d/%Y"),  # 03/25/2026
-        dt.strftime("%B %-d, %Y"),  # March 25, 2026
-        dt.strftime("%b %-d, %Y"),  # Mar 25, 2026
+        f"{dt.month}/{dt.day}/{dt.year}",  # 3/25/2026
+        f"{dt.month:02d}/{dt.day:02d}/{dt.year}",  # 03/25/2026
+        f"{dt.strftime('%B')} {dt.day}, {dt.year}",  # March 25, 2026
+        f"{dt.strftime('%b')} {dt.day}, {dt.year}",  # Mar 25, 2026
     ]
 
     for i in range(count):
@@ -221,9 +230,12 @@ def _build_intercept_handler(captured: list):
 def _extract_shots_from_captured(captured: list) -> list[dict]:
     """
     Parse the captured JSON responses to find shot-level data.
-    Returns a list of shot dicts with all available metrics.
+    Returns a list of shot dicts with all available metrics, deduplicated —
+    the same shot often appears in more than one intercepted response
+    (e.g. session list + session detail).
     """
     shots = []
+    seen: set[str] = set()
     for item in captured:
         data = item["data"]
 
@@ -241,12 +253,12 @@ def _extract_shots_from_captured(captured: list) -> list[dict]:
         else:
             continue
 
-        for item in candidates:
-            if not isinstance(item, dict):
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
                 continue
             # Heuristic: a shot dict should have at least ball speed or launch angle
             has_metrics = any(
-                k in item
+                k in candidate
                 for k in [
                     "ballSpeed",
                     "ball_speed",
@@ -259,7 +271,10 @@ def _extract_shots_from_captured(captured: list) -> list[dict]:
                 ]
             )
             if has_metrics:
-                shots.append(item)
+                key = json.dumps(candidate, sort_keys=True, default=str)
+                if key not in seen:
+                    seen.add(key)
+                    shots.append(candidate)
 
     return shots
 
@@ -273,8 +288,9 @@ def _normalize_shot(raw: dict, index: int) -> dict:
                 return raw[k]
         return None
 
+    shot_number = get("shotNumber", "shot_number", "index")
     return {
-        "shot_number": get("shotNumber", "shot_number", "index") or index + 1,
+        "shot_number": shot_number if shot_number is not None else index + 1,
         "club": get("club", "clubType", "club_type", "clubName") or "Unknown",
         "ball_speed_mph": get("ballSpeed", "ball_speed"),
         "club_speed_mph": get("clubSpeed", "club_speed", "clubHeadSpeed"),
@@ -363,7 +379,7 @@ async def fetch_session(target_date: str, debug: bool = False) -> dict:
         downloaded_videos = []
         for shot in shots:
             shot_num = str(shot["shot_number"]).zfill(2)
-            club = re.sub(r"[^a-zA-Z0-9]", "", str(shot["club"] or "Unknown"))
+            club = sanitize_club(shot["club"])
             carry = int(shot["carry_distance_yds"] or 0)
 
             for video_type, url_key in [("impact", "impact_video_url"), ("shot", "shot_video_url")]:
