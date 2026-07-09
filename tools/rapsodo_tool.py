@@ -26,22 +26,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from utils import resolve_date  # lightweight — safe for test imports
 
-# Heavy imports are deferred to function bodies so test collection doesn't
-# require playwright / crewai / opencv to be installed.
-_crewai_tool = None
-
-
-def _get_crewai_tool_decorator():
-    global _crewai_tool
-    if _crewai_tool is None:
-        from crewai.tools import tool as crewai_tool
-
-        _crewai_tool = crewai_tool
-    return _crewai_tool
-
-
-# Re-export for backwards compatibility with orchestrator imports
-_resolve_date = resolve_date
+# Heavy imports (playwright / crewai / opencv) are deferred to function bodies
+# so test collection doesn't require them to be installed.
 
 
 # ---------------------------------------------------------------------------

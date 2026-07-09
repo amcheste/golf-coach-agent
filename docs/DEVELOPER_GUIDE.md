@@ -22,7 +22,8 @@ This guide covers the internal architecture, module responsibilities, how to ext
 ```
 golf-coach-agent/
 ├── src/
-│   ├── rapsodo_scraper.py   # Playwright auth, session discovery, network interception, download
+│   ├── rapsodo_scraper.py   # Playwright auth, direct API fast path, UI-interception fallback, download
+│   ├── rcloud_api.py        # Payload parsing + endpoint manifest (playwright-free, unit-tested)
 │   ├── preprocessor.py      # Stats engine + OpenCV key frame extractor
 │   └── history_tracker.py   # SQLite read/write for trend analysis
 ├── tools/
@@ -37,7 +38,7 @@ golf-coach-agent/
 ├── tests/
 │   ├── test_date_resolver.py
 │   ├── test_stats.py
-│   └── test_frame_extraction.py
+│   └── test_history_tracker.py
 ├── docs/
 │   └── DEVELOPER_GUIDE.md   # This file
 ├── rapsodo_vault/           # gitignored — all downloaded data lives here
@@ -62,12 +63,20 @@ golf-coach-agent/
 The only module that touches the network. Responsibilities:
 
 - **Auth:** Load `config/storage_state.json` for session reuse; fall back to headed login if missing
-- **Session discovery:** Scroll the R-Cloud sessions list and find a card matching the target date
-- **Network interception:** Attach a Playwright `response` event listener *before* navigating into the session so no API call is missed. All JSON responses from `rapsodo` or `/api/` domains are captured
-- **Normalization:** `_normalize_shot()` maps the many possible field name variants from Rapsodo's API into a consistent schema used by the rest of the system
+- **Direct API fast path:** If a previous run learned R-Cloud's API endpoints (see `rcloud_api.py`), request them straight through the authenticated context — no page navigation, selectors, or jitter
+- **Session discovery (fallback):** Scroll the R-Cloud sessions list and find a card matching the target date
+- **Network interception (fallback):** Attach a Playwright `response` event listener *before* navigating into the session so no API call is missed. All JSON responses from `rapsodo` or `/api/` domains are captured, and the fruitful endpoints are saved to the manifest for the next run
 - **Download:** Streams video files via the authenticated browser context
 
-This module is **async throughout** (`async_playwright`, `aiofiles`). The `fetch_session()` coroutine is the public interface; the tool wrapper calls it via `asyncio.run()`.
+This module is **async throughout** (`async_playwright`, `aiofiles`). The `fetch_session()` coroutine is the public interface; the tool wrapper calls it via `asyncio.run()`. Its result includes `fetch_mode` (`"direct_api"` or `"ui_intercept"`) so you can see which path ran.
+
+### `src/rcloud_api.py`
+
+Playwright-free parsing and endpoint-manifest logic, fully unit-tested:
+
+- **Normalization:** `normalize_shot()` maps the many possible field name variants from Rapsodo's API into a consistent schema used by the rest of the system
+- **Shot extraction:** `extract_shots_from_captured()` finds and deduplicates shot dicts across captured JSON responses
+- **Endpoint manifest:** `build_manifest()` generalizes a UI-interception capture into `rapsodo_vault/api_manifest.json` — the session-list URL plus shot-URL templates with `{session_id}` placeholders. `session_date_map()` maps dates to session ids from a session-list payload so later runs can substitute the right id
 
 ### `src/preprocessor.py`
 
@@ -102,7 +111,7 @@ Thin orchestration wrapper. Responsibilities:
 Two concerns in one file:
 
 1. **Vision analysis** (`analyze_swing_frames_with_vision`). Selects the 3 most instructive shots (worst/median/best smash factor), encodes their frames as base64, and calls either Claude or GPT-4o with a structured coaching prompt
-2. **CrewAI definitions**. `build_scout_agent()`, `build_coach_agent()`, and corresponding task builders. The Scout agent uses the `download_rapsodo_session` tool; the Coach agent receives the session package + vision output as context
+2. **CrewAI definitions**. `build_crew_llm()` picks the LLM from whichever API key is set (CrewAI would otherwise default to OpenAI), and `build_coach_agent()` / `build_coach_task()` define the Coach, which receives the session package + vision output as context
 
 ### `agents/orchestrator.py`
 
@@ -127,8 +136,8 @@ RapsodoCoachTool.run("2026-03-24")
   │
   ├─► rapsodo_scraper.fetch_session()
   │     ├─ Load storage_state.json
-  │     ├─ Navigate to R-Cloud sessions
-  │     ├─ Intercept JSON API responses  ◄── shot metrics arrive here
+  │     ├─ Direct API fast path (learned endpoints)  ◄── shot metrics arrive here
+  │     │    └─ fallback: navigate UI + intercept JSON, re-learn endpoints
   │     ├─ Download .mp4 videos
   │     └─ Save shots_raw.json
   │
@@ -144,7 +153,7 @@ RapsodoCoachTool.run("2026-03-24")
 analyze_swing_frames_with_vision()
   │  Select worst/median/best shots
   │  Encode frames as base64
-  └─► Claude claude-sonnet-4-6 / GPT-4o → vision_analysis string
+  └─► Claude / GPT-4o (see ANTHROPIC_MODEL / OPENAI_MODEL env vars) → vision_analysis string
   │
   ▼
 CrewAI Coach Agent Task
@@ -227,11 +236,15 @@ If you see 0 captures, the scraper navigated correctly but Rapsodo changed their
 
 ### If shot metrics aren't being extracted from captured responses
 
-The `_extract_shots_from_captured()` function looks for lists of dicts with ball speed / launch angle fields. If Rapsodo wraps the shots differently, check `shots_raw.json` in the session directory after a run. It contains the raw intercepted payloads. Add the new wrapper key to the `for key in [...]` list in `_extract_shots_from_captured()`.
+The `extract_shots_from_captured()` function in `rcloud_api.py` looks for lists of dicts with ball speed / launch angle fields. If Rapsodo wraps the shots differently, check `shots_raw.json` in the session directory after a run. It contains the raw intercepted payloads. Add the new wrapper key to `LIST_WRAPPER_KEYS` in `rcloud_api.py`.
 
-### If `_normalize_shot()` is missing a field
+### If `normalize_shot()` is missing a field
 
-Add new field name variants to the appropriate `get()` call in `_normalize_shot()`. Field names seen in the wild so far are documented in the source as the first argument to each `get()` call.
+Add new field name variants to the appropriate `get()` call in `normalize_shot()` in `rcloud_api.py`. Field names seen in the wild so far are documented in the source as the first argument to each `get()` call.
+
+### If the direct API fast path stops working
+
+The fast path replays endpoints saved in `rapsodo_vault/api_manifest.json`. If R-Cloud changes its API, the fast path fails gracefully and the run falls back to UI interception, which re-learns the manifest automatically. To force a re-learn, delete `rapsodo_vault/api_manifest.json`. The scraper prints which path it used (`direct_api` or `ui_intercept`) and the result dict carries it as `fetch_mode`.
 
 ---
 
@@ -239,7 +252,7 @@ Add new field name variants to the appropriate `get()` call in `_normalize_shot(
 
 ### Adding a new metric
 
-1. Add it to `_normalize_shot()` in `rapsodo_scraper.py`
+1. Add it to `normalize_shot()` in `rcloud_api.py`
 2. Add it to `TRACKED_METRICS` in `history_tracker.py`
 3. Add the SQLite column to the `raw_shots` table schema in `history_tracker.py`
 4. Add it to the `session_summary` table and upsert query if you want per-club trend tracking
@@ -304,7 +317,11 @@ The responses we care about typically look like:
 }
 ```
 
-The exact URL path and field names have varied across R-Cloud versions, which is why `_normalize_shot()` handles multiple aliases for each field.
+The exact URL path and field names have varied across R-Cloud versions, which is why `normalize_shot()` handles multiple aliases for each field.
+
+### The endpoint manifest — how interception becomes direct API access
+
+Interception is only needed to *discover* the endpoints. After a successful UI run, `build_manifest()` in `rcloud_api.py` records which captured URL was the session list (a payload mapping dates to session ids) and which URLs actually produced shots, generalizing the session id into a `{session_id}` template. The next run requests the session list directly via `context.request` (authenticated by the same cookies), resolves the date to an id, substitutes it into the templates, and never opens a page for data at all — the browser is only used for auth and video downloads. Any mismatch falls back to full interception and refreshes the manifest.
 
 ---
 
@@ -315,7 +332,7 @@ The vision analysis sends up to 12 images (3 shots × 4 frames each) per request
 The shot selection logic in `analyze_swing_frames_with_vision()` deliberately picks worst, best, and median shots by smash factor. This gives the Vision LLM a comparison set. It can note what the best shots look like mechanically and contrast them with the worst, which is far more instructive than analyzing random shots.
 
 **Token cost rough estimate per session:**
-- Claude claude-sonnet-4-6 with 12 images + ~800 token prompt: ~4,000–6,000 input tokens
+- Claude with 12 images + ~800 token prompt: ~4,000–6,000 input tokens
 - At current pricing this is well under $0.10 per coaching session
 
 If you want to reduce cost further, change the `candidates` selection in `analyze_swing_frames_with_vision()` to only send the worst 1–2 shots.

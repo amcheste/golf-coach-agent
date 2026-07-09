@@ -1,23 +1,38 @@
 """
 Rapsodo R-Cloud Scraper
 -----------------------
-Authenticates with golf-cloud.rapsodo.com, intercepts the JSON API responses
-the portal makes internally, and downloads shot data + videos for a given session date.
+Authenticates with golf-cloud.rapsodo.com and downloads shot data + videos
+for a given session date.
+
+Two data paths, tried in order:
+  1. Direct API fast path — request the endpoints learned from a previous run
+     (see rcloud_api.py) straight through the authenticated context. No page
+     navigation, no selectors, no jitter.
+  2. UI interception fallback — drive the sessions UI and capture the JSON
+     responses the page makes internally. Runs on first use or whenever the
+     fast path comes up empty, and (re)learns the endpoint manifest.
 """
 
 import asyncio
 import json
 import os
 import random
-import re
-import time
 from pathlib import Path
-from typing import Optional
-from urllib.parse import urlparse
 
 import aiofiles
 from dotenv import load_dotenv
 from playwright.async_api import BrowserContext, Page, Response, async_playwright
+
+from rcloud_api import (
+    build_manifest,
+    extract_shots_from_captured,
+    load_manifest,
+    normalize_shot,
+    save_manifest,
+    session_date_map,
+    shot_urls_for_session,
+)
+from utils import sanitize_club
 
 load_dotenv()
 
@@ -109,6 +124,15 @@ async def _get_authenticated_context(playwright, debug: bool = False):
         print("[Auth] Loading saved session state...")
         context = await browser.new_context(storage_state=str(STATE_FILE))
     else:
+        if not headed:
+            # The login flow needs a visible browser for MFA/OTP — blocking on
+            # input() with a headless browser would hang forever.
+            await browser.close()
+            raise RuntimeError(
+                "No saved R-Cloud session found and the browser is headless, so the "
+                "login/MFA flow cannot be completed. Run `python scripts/initial_login.py` "
+                "once to save a session, or re-run with debug=True for a visible browser."
+            )
         print("[Auth] No saved session found — starting manual login flow...")
         context = await browser.new_context()
         page = await context.new_page()
@@ -144,13 +168,15 @@ async def _find_session_for_date(page: Page, target_date: str) -> bool:
     # Convert YYYY-MM-DD to multiple display formats for matching
     from datetime import datetime
 
+    # Built manually rather than with %-m/%-d strftime codes, which are not
+    # supported on Windows.
     dt = datetime.strptime(target_date, "%Y-%m-%d")
     date_variants = [
         target_date,  # 2026-03-25
-        dt.strftime("%-m/%-d/%Y"),  # 3/25/2026
-        dt.strftime("%m/%d/%Y"),  # 03/25/2026
-        dt.strftime("%B %-d, %Y"),  # March 25, 2026
-        dt.strftime("%b %-d, %Y"),  # Mar 25, 2026
+        f"{dt.month}/{dt.day}/{dt.year}",  # 3/25/2026
+        f"{dt.month:02d}/{dt.day:02d}/{dt.year}",  # 03/25/2026
+        f"{dt.strftime('%B')} {dt.day}, {dt.year}",  # March 25, 2026
+        f"{dt.strftime('%b')} {dt.day}, {dt.year}",  # Mar 25, 2026
     ]
 
     for i in range(count):
@@ -218,81 +244,48 @@ def _build_intercept_handler(captured: list):
     return handler
 
 
-def _extract_shots_from_captured(captured: list) -> list[dict]:
+# ---------------------------------------------------------------------------
+# Direct API fast path
+# ---------------------------------------------------------------------------
+
+
+async def _try_direct_fetch(context: BrowserContext, target_date: str) -> list[dict]:
     """
-    Parse the captured JSON responses to find shot-level data.
-    Returns a list of shot dicts with all available metrics.
+    Fast path: request the API endpoints learned from a previous run directly
+    through the authenticated context — no page navigation, selectors, or
+    jitter. Returns captured-style [{"url", "data"}] responses; an empty list
+    signals the caller to fall back to UI interception.
     """
-    shots = []
-    for item in captured:
-        data = item["data"]
+    manifest = load_manifest()
+    if not manifest:
+        return []
 
-        # Handle various response shapes Rapsodo might use
-        if isinstance(data, list):
-            candidates = data
-        elif isinstance(data, dict):
-            # Common keys: shots, data, results, items, session_shots
-            for key in ["shots", "data", "results", "items", "session_shots", "measurements"]:
-                if key in data and isinstance(data[key], list):
-                    candidates = data[key]
-                    break
-            else:
-                candidates = [data]
-        else:
-            continue
+    print("[Scout] Trying direct API fast path from learned endpoints...")
+    try:
+        resp = await context.request.get(manifest["session_list_url"])
+        if not (resp.ok and "json" in resp.headers.get("content-type", "")):
+            print(f"[Scout] Session list request failed (status {resp.status}) — falling back.")
+            return []
+        session_map = session_date_map(await resp.json())
+    except Exception as e:
+        print(f"[Scout] Direct API path errored ({e}) — falling back to UI.")
+        return []
 
-        for item in candidates:
-            if not isinstance(item, dict):
-                continue
-            # Heuristic: a shot dict should have at least ball speed or launch angle
-            has_metrics = any(
-                k in item
-                for k in [
-                    "ballSpeed",
-                    "ball_speed",
-                    "launchAngle",
-                    "launch_angle",
-                    "totalSpin",
-                    "total_spin",
-                    "carryDistance",
-                    "carry_distance",
-                ]
-            )
-            if has_metrics:
-                shots.append(item)
+    session_id = session_map.get(target_date)
+    if session_id is None:
+        print(f"[Scout] {target_date} not in the session list response — falling back to UI.")
+        return []
 
-    return shots
-
-
-def _normalize_shot(raw: dict, index: int) -> dict:
-    """Normalize varied field names into a consistent schema."""
-
-    def get(*keys):
-        for k in keys:
-            if k in raw:
-                return raw[k]
-        return None
-
-    return {
-        "shot_number": get("shotNumber", "shot_number", "index") or index + 1,
-        "club": get("club", "clubType", "club_type", "clubName") or "Unknown",
-        "ball_speed_mph": get("ballSpeed", "ball_speed"),
-        "club_speed_mph": get("clubSpeed", "club_speed", "clubHeadSpeed"),
-        "launch_angle_deg": get("launchAngle", "launch_angle", "launchAngleDeg"),
-        "backspin_rpm": get("backSpin", "backspin", "backSpinRate", "totalSpin", "total_spin"),
-        "sidespin_rpm": get("sideSpin", "sidespin", "sideSpinRate"),
-        "spin_axis_deg": get("spinAxis", "spin_axis"),
-        "smash_factor": get("smashFactor", "smash_factor"),
-        "carry_distance_yds": get("carryDistance", "carry_distance", "carry"),
-        "total_distance_yds": get("totalDistance", "total_distance", "total"),
-        "club_path_deg": get("clubPath", "club_path"),
-        "face_angle_deg": get("faceAngle", "face_angle", "faceToPath"),
-        "angle_of_attack_deg": get("angleOfAttack", "angle_of_attack", "aoa"),
-        "lateral_yds": get("lateral", "offline", "dispersion"),
-        "impact_video_url": get("impactVideoUrl", "impact_video_url", "impactVideo", "videoUrl"),
-        "shot_video_url": get("shotVideoUrl", "shot_video_url", "shotVideo", "downTheLineVideoUrl"),
-        "_raw": raw,  # Preserve original for debugging
-    }
+    captured = []
+    for url in shot_urls_for_session(manifest, session_id):
+        try:
+            resp = await context.request.get(url)
+            if resp.ok and "json" in resp.headers.get("content-type", ""):
+                captured.append({"url": url, "data": await resp.json()})
+                print(f"[Scout] Direct fetch OK: {url}")
+        except Exception as e:
+            print(f"[Scout] Direct fetch failed for {url}: {e}")
+    return captured
 
 
 # ---------------------------------------------------------------------------
@@ -304,9 +297,8 @@ async def fetch_session(target_date: str, debug: bool = False) -> dict:
     """
     Full pipeline for one session date:
     1. Authenticate (or load saved session)
-    2. Find the session matching target_date
-    3. Intercept JSON to extract shot metrics
-    4. Download all videos
+    2. Fetch shot metrics — direct API fast path first, UI interception fallback
+    3. Download all videos
 
     Returns a result dict with session_path, shots, and download summary.
     """
@@ -315,55 +307,71 @@ async def fetch_session(target_date: str, debug: bool = False) -> dict:
     video_dir = session_dir / "videos"
     video_dir.mkdir(exist_ok=True)
 
-    captured_responses: list[dict] = []
-
     async with async_playwright() as p:
         browser, context = await _get_authenticated_context(p, debug=debug)
-        page = await context.new_page()
 
-        # Attach network interceptor before navigating
-        page.on("response", _build_intercept_handler(captured_responses))
+        # --- Fast path: learned API endpoints, no UI navigation ---
+        fetch_mode = "direct_api"
+        captured_responses = await _try_direct_fetch(context, target_date)
+        raw_shots = extract_shots_from_captured(captured_responses)
 
-        # Find and enter the session
-        found = await _find_session_for_date(page, target_date)
-        if not found:
-            await browser.close()
-            return {
-                "success": False,
-                "error": f"No session found for {target_date}",
-                "session_path": str(session_dir),
-            }
+        if raw_shots:
+            print(f"[Scout] Direct API fast path succeeded ({len(raw_shots)} raw shots).")
+        else:
+            # --- Fallback: drive the UI and intercept responses ---
+            fetch_mode = "ui_intercept"
+            captured_responses = []
+            page = await context.new_page()
 
-        # Give the page extra time to fire all XHR/fetch calls
-        await _jitter(3, 5)
-        await page.wait_for_load_state("networkidle")
-        await _jitter(2, 3)
+            # Attach network interceptor before navigating
+            page.on("response", _build_intercept_handler(captured_responses))
 
-        # Try to trigger a CSV export if the button exists
-        try:
-            export_btn = page.locator(
-                'button:has-text("Export"), a:has-text("CSV"), [aria-label*="export" i]'
-            )
-            if await export_btn.count() > 0:
-                print("[Scout] Attempting CSV export...")
-                async with page.expect_download(timeout=10_000) as dl_info:
-                    await export_btn.first.click()
-                dl = await dl_info.value
-                await dl.save_as(session_dir / "raw_data.csv")
-                print("[Scout] CSV downloaded.")
-        except Exception as e:
-            print(f"[Scout] CSV export not available or failed: {e}")
+            # Find and enter the session
+            found = await _find_session_for_date(page, target_date)
+            if not found:
+                await browser.close()
+                return {
+                    "success": False,
+                    "error": f"No session found for {target_date}",
+                    "session_path": str(session_dir),
+                }
 
-        # Extract shots from intercepted JSON
-        raw_shots = _extract_shots_from_captured(captured_responses)
-        shots = [_normalize_shot(s, i) for i, s in enumerate(raw_shots)]
-        print(f"[Scout] Extracted {len(shots)} shots from intercepted responses.")
+            # Give the page extra time to fire all XHR/fetch calls
+            await _jitter(3, 5)
+            await page.wait_for_load_state("networkidle")
+            await _jitter(2, 3)
+
+            # Try to trigger a CSV export if the button exists
+            try:
+                export_btn = page.locator(
+                    'button:has-text("Export"), a:has-text("CSV"), [aria-label*="export" i]'
+                )
+                if await export_btn.count() > 0:
+                    print("[Scout] Attempting CSV export...")
+                    async with page.expect_download(timeout=10_000) as dl_info:
+                        await export_btn.first.click()
+                    dl = await dl_info.value
+                    await dl.save_as(session_dir / "raw_data.csv")
+                    print("[Scout] CSV downloaded.")
+            except Exception as e:
+                print(f"[Scout] CSV export not available or failed: {e}")
+
+            # Extract shots from intercepted JSON, then learn the endpoints
+            # so the next run can skip the UI entirely.
+            raw_shots = extract_shots_from_captured(captured_responses)
+            manifest = build_manifest(captured_responses, target_date)
+            if manifest:
+                save_manifest(manifest)
+                print("[Scout] Learned API endpoints — future runs will skip UI navigation.")
+
+        shots = [normalize_shot(s, i) for i, s in enumerate(raw_shots)]
+        print(f"[Scout] Extracted {len(shots)} shots ({fetch_mode}).")
 
         # Download videos
         downloaded_videos = []
         for shot in shots:
             shot_num = str(shot["shot_number"]).zfill(2)
-            club = re.sub(r"[^a-zA-Z0-9]", "", str(shot["club"] or "Unknown"))
+            club = sanitize_club(shot["club"])
             carry = int(shot["carry_distance_yds"] or 0)
 
             for video_type, url_key in [("impact", "impact_video_url"), ("shot", "shot_video_url")]:
@@ -398,4 +406,5 @@ async def fetch_session(target_date: str, debug: bool = False) -> dict:
         "shots": shots,
         "downloaded_videos": downloaded_videos,
         "captured_api_responses": len(captured_responses),
+        "fetch_mode": fetch_mode,
     }

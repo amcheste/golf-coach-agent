@@ -6,11 +6,8 @@ can identify trends across multiple sessions (e.g., carry distance improving,
 spin rate drifting, path getting worse over 3 weeks).
 """
 
-import json
 import sqlite3
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 VAULT_DIR = Path(__file__).parent.parent / "rapsodo_vault"
 DB_PATH = VAULT_DIR / "master_history.db"
@@ -28,6 +25,23 @@ TRACKED_METRICS = [
     "face_angle_deg",
     "angle_of_attack_deg",
 ]
+
+# Metrics where a bigger number is better.
+HIGHER_IS_BETTER = {
+    "ball_speed_mph",
+    "club_speed_mph",
+    "smash_factor",
+    "carry_distance_yds",
+    "total_distance_yds",
+}
+
+# Metrics where the ideal value is zero — improvement means moving toward 0,
+# regardless of sign (a path going -2° -> -5° is worse, -5° -> -2° is better).
+ZERO_TARGET_METRICS = {
+    "club_path_deg",
+    "face_angle_deg",
+    "sidespin_rpm",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +158,10 @@ def upsert_session(session_date: str, session_analysis: dict, shots: list[dict])
                 ),
             )
 
+        # raw_shots has no uniqueness constraint, so re-running the same date
+        # would duplicate every row — replace the date's shots wholesale instead.
+        conn.execute("DELETE FROM raw_shots WHERE session_date = ?", (session_date,))
+
         for shot in shots:
             conn.execute(
                 """
@@ -240,36 +258,29 @@ def get_trend_summary(club: str, metric: str, last_n_sessions: int = 5) -> dict:
     values = [r["value"] for r in trend if r["value"] is not None]
     first, last = values[0], values[-1]
     delta = last - first
-    pct_change = round((delta / first) * 100, 1) if first != 0 else 0
 
-    if abs(pct_change) < 3:
-        direction = "stable"
-    elif delta > 0:
-        direction = (
-            "improving"
-            if metric
-            in [
-                "carry_distance_yds",
-                "total_distance_yds",
-                "ball_speed_mph",
-                "club_speed_mph",
-                "smash_factor",
-            ]
-            else "worsening"
-        )
+    if metric in ZERO_TARGET_METRICS:
+        # Judge by distance from zero, not by signed value — and compute the
+        # percentage against |first| since a signed ratio is meaningless for
+        # values that can cross zero.
+        drift = abs(last) - abs(first)
+        pct_change = round((drift / abs(first)) * 100, 1) if first != 0 else 0.0
+        if first != 0 and abs(pct_change) < 3:
+            direction = "stable"
+        elif drift > 0:
+            direction = "worsening"
+        elif drift < 0:
+            direction = "improving"
+        else:
+            direction = "stable"
     else:
-        direction = (
-            "worsening"
-            if metric
-            in [
-                "carry_distance_yds",
-                "total_distance_yds",
-                "ball_speed_mph",
-                "club_speed_mph",
-                "smash_factor",
-            ]
-            else "improving"
-        )
+        pct_change = round((delta / first) * 100, 1) if first != 0 else 0.0
+        if abs(pct_change) < 3:
+            direction = "stable"
+        elif (delta > 0) == (metric in HIGHER_IS_BETTER):
+            direction = "improving"
+        else:
+            direction = "worsening"
 
     summary = (
         f"{club} {metric}: {direction} over {len(trend)} sessions "
