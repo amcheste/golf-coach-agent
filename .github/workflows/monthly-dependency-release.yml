@@ -17,4 +17,4 @@ permissions:
 
 jobs:
   release:
-    uses: amcheste/gh-workflows/.github/workflows/reusable-monthly-dependency-release.yml@v1.1.0
+    uses: amcheste/gh-workflows/.github/workflows/reusable-monthly-dependency-release.yml@v1.1.3
