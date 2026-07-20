@@ -13,4 +13,4 @@ permissions:
 
 jobs:
   stale:
-    uses: amcheste/gh-workflows/.github/workflows/reusable-stale.yml@v1.1.1
+    uses: amcheste/gh-workflows/.github/workflows/reusable-stale.yml@v1.1.3
