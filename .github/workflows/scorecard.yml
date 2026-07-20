@@ -12,7 +12,11 @@ on:
     branches: [main, develop]
   workflow_dispatch:
 
-permissions: read-all
+permissions:
+  security-events: write
+  id-token: write
+  contents: read
+  actions: read
 
 jobs:
   scorecard:
